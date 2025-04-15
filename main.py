@@ -1,367 +1,122 @@
 import argparse
 import sys
 import json
-import re
-import urllib.parse
-from Bio.SeqFeature import FeatureLocation
+from parser import parse_insdc_location, location_node_to_faldo, wrap_faldo
+from const import EXACT_POSITION, REGION, COMPLEMENT, LIST_OF_REGIONS, INBETWEEN_POSITION, FUZZY_POSITION, INRANGE_POSITION, NEGATIVE_STRAND
 
-def insdc_to_faldo(insdc_id, id_base_url, context_url):
+def insdc_to_faldo(insdc_id: str, id_base_url: str, context_url: str) -> dict:
     """
-    Convert ID containing INSDC Location notation to FALDO JSON-LD
-    """
-
-    # TODO: Implement under the assumption that the number of layers is variable.
-    if "join(complement(" in insdc_id:
-        # Complement-and-Join
-        # example: join(complement(4918..5163),complement(2691..4571))
-        match = re.match(r"(.+):join\(complement\((\d+)\.\.(\d+)\),complement\((\d+)\.\.(\d+)\)\)", insdc_id)
-        if match:
-            accession, start1, end1, start2, end2 = match.groups()
-            faldo_json = {
-                "@context": f"{context_url}",
-                "id": f"{id_base_url}{insdc_id}",
-                "faldo:location": {
-                    "type": "faldo:BagOfRegions",
-                    "faldo:member": [
-                        {
-                            "type": "faldo:Region",
-                            "faldo:begin": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(start1),
-                                "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                            },
-                            "faldo:end": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(end1),
-                                "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                            },
-                            "faldo:strand": "faldo:NegativeStrand"
-                        },
-                        {
-                            "type": "faldo:Region",
-                            "faldo:begin": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(start2),
-                                "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                            },
-                            "faldo:end": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(end2),
-                                "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                            },
-                            "faldo:strand": "faldo:NegativeStrand"
-                        }
-                    ]
-                }
-            }
-            return json.dumps(faldo_json, indent=2)
-    elif "complement(join(" in insdc_id:
-        # Joined-Complemented-Regions
-        # example: complement(join(2691..4571,4918..5163))
-        match = re.match(r"(.+):complement\(join\((\d+)\.\.(\d+),(\d+)\.\.(\d+)\)\)", insdc_id)
-        if match:
-            accession, start1, end1, start2, end2 = match.groups()
-            faldo_json = {
-                "@context": f"{context_url}",
-                "id": f"{id_base_url}{insdc_id}",
-                "faldo:location": {
-                    "type": "faldo:ListOfRegions",
-                    "faldo:strand": "faldo:NegativeStrand",
-                    "faldo:member": [
-                        {
-                            "type": "faldo:Region",
-                            "faldo:begin": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(start1),
-                                "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                            },
-                            "faldo:end": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(end1),
-                                "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                            },
-                            "faldo:order": 1
-                        },
-                        {
-                            "type": "faldo:Region",
-                            "faldo:begin": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(start2),
-                                "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                            },
-                            "faldo:end": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(end2),
-                                "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                            },
-                            "faldo:order": 2
-                        }
-                    ]
-                }
-            }
-            return json.dumps(faldo_json, indent=2)
-    elif "join(" in insdc_id and ":" in insdc_id:
-        # Join-with-Remote-Reference
-        # example: join(1..100,J00194.1:100..202)
-        match = re.match(r"(.+):join\((\d+)\.\.(\d+),([\w\.]+):(\d+)\.\.(\d+)\)", insdc_id)
-        if match:
-            accession, start1, end1, ref2, start2, end2 = match.groups()
-            ref2 = re.sub(r"\.\d+$", "", ref2)  # Remove version information (e.g. .1)
-            faldo_json = {
-                "@context": f"{context_url}",
-                "id": f"{id_base_url}{insdc_id}",
-                "faldo:location": {
-                    "type": "faldo:ListOfRegions",
-                    "faldo:member": [
-                        {
-                            "type": "faldo:Region",
-                            "faldo:begin": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(start1),
-                                "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                            },
-                            "faldo:end": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(end1),
-                                "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                            },
-                            "faldo:order": 1
-                        },
-                        {
-                            "type": "faldo:Region",
-                            "faldo:begin": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(start2),
-                                "faldo:reference": f"insdc:{ref2}"
-                            },
-                            "faldo:end": {
-                                "type": "faldo:ExactPosition",
-                                "faldo:position": int(end2),
-                                "faldo:reference": f"insdc:{ref2}"
-                            },
-                            "faldo:order": 2
-                        }
-                    ]
-                }
-            }
-            return json.dumps(faldo_json, indent=2)        
-
-    match = re.match(r"(.+):([<>]?\d+|\d+)\.(\d+)", insdc_id)
-    if match:
-        # Uncertain-Location
-        # example: 102.110
-        accession, start, end = match.groups()
-        start_pos, end_pos = int(start), int(end)
-        faldo_json = {
-            "@context": f"{context_url}",
-            "id": f"{id_base_url}{insdc_id}",
-            "faldo:location": {
-                "type": "faldo:InRangePosition",
-                "faldo:begin": {
-                    "type": "faldo:Position",
-                    "faldo:position": start_pos,
-                    "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                },
-                "faldo:end": {
-                    "type": "faldo:Position",
-                    "faldo:position": end_pos,
-                    "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                }
-            }
-        }
-        return json.dumps(faldo_json, indent=2)
-
-    match = re.match(r"(.+):([<>]?\d+)\^([<>]?\d+)", insdc_id)
-    if match:
-        # Between-Bases
-        # example: 123^124
-        accession, before, after = match.groups()
-        faldo_json = {
-            "@context": f"{context_url}",
-            "id": f"{id_base_url}{insdc_id}",
-            "faldo:location": {
-                "type": "faldo:InBetweenPosition",
-                "faldo:before": {
-                    "faldo:position": int(before),
-                    "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                },
-                "faldo:after": {
-                    "faldo:position": int(after),
-                    "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                }
-            }
-        }
-        return json.dumps(faldo_json, indent=2)
-
-    match = re.match(r"(.+):join\((.+)\)", insdc_id)
-    if match:
-        # Joined-Regions
-        # join(12..78,134..202)
-        accession, regions = match.groups()
-        region_list = []
-        for idx, region in enumerate(regions.split(','), start=1):
-            sub_match = re.match(r"([<>]?\d+)\.\.([<>]?\d+)", region)
-            if sub_match:
-                start, end = sub_match.groups()
-                region_list.append({
-                    "type": "faldo:Region",
-                    "faldo:begin": {
-                        "type": "faldo:ExactPosition",
-                        "faldo:position": int(start),
-                        "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                    },
-                    "faldo:end": {
-                        "type": "faldo:ExactPosition",
-                        "faldo:position": int(end),
-                        "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                    },
-                    "faldo:order": idx
-                })
-        
-        faldo_json = {
-            "@context": f"{context_url}",
-            "id": f"{id_base_url}{insdc_id}",
-            "faldo:location": {
-                "type": "faldo:ListOfRegions",
-                "faldo:member": region_list
-            }
-        }
-        return json.dumps(faldo_json, indent=2)
-
-    match = re.match(r"(.+):complement\((\d+)\.\.(\d+)\)", insdc_id)
-    if match:
-        # Complemented-Region
-        # example: complement(34..126)
-        accession, start, end = match.groups()
-        faldo_json = {
-            "@context": f"{context_url}",
-            "id": f"{id_base_url}{insdc_id}",
-            "faldo:location": {
-                "type": "faldo:Region",
-                "faldo:begin": {
-                    "type": "faldo:ExactPosition",
-                    "faldo:position": int(start),
-                    "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                },
-                "faldo:end": {
-                    "type": "faldo:ExactPosition",
-                    "faldo:position": int(end),
-                    "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                },
-                "faldo:strand": "faldo:NegativeStrand"
-            }
-        }
-        return json.dumps(faldo_json, indent=2)
-
-    match = re.match(r"(.+):(.+):(\d+)\.\.(\d+)", insdc_id)
-    if match:
-        # Remote-Reference
-        # example: J00194.1:100..202
-        accession, ref_accession, start, end = match.groups()
-        ref_accession = re.sub(r"\.\d+$", "", ref_accession)  # Remove version information (e.g. .1)
-        faldo_json = {
-            "@context": f"{context_url}",
-            "id": f"{id_base_url}{insdc_id}",
-            "faldo:location": {
-                "type": "faldo:Region",
-                "faldo:begin": {
-                    "type": "faldo:ExactPosition",
-                    "faldo:position": int(start),
-                    "faldo:reference": f"insdc:{ref_accession}"
-                },
-                "faldo:end": {
-                    "type": "faldo:ExactPosition",
-                    "faldo:position": int(end),
-                    "faldo:reference": f"insdc:{ref_accession}"
-                }
-            }
-        }
-        return json.dumps(faldo_json, indent=2)
-
-    match = re.match(r"(.+):([<>]?\d+)(\.\.([<>]?\d+))?", insdc_id)
-    if match:
-        accession, start, _, end = match.groups()
-        
-        if end is None:
-            # Single-Base
-            # example：467
-            position = int(start)
-            location = FeatureLocation(position - 1, position)
-            faldo_json = {
-                "@context": f"{context_url}",
-                "id": f"{id_base_url}{insdc_id}",
-                "faldo:location": {
-                    "type": "faldo:ExactPosition",
-                    "faldo:position": int(location.start) + 1,
-                    "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                }
-            }
-        elif "<" in start or ">" in end:
-            # Unknown-Start-Range
-            # example: <345..500
-            start_pos = int(start.lstrip("<")) if "<" in start else int(start)
-            end_pos = int(end.lstrip(">")) if ">" in end else int(end)
-            location = FeatureLocation(start_pos - 1, end_pos)
-            faldo_json = {
-                "@context": f"{context_url}",
-                "id": f"{id_base_url}{insdc_id}",
-                "faldo:location": {
-                    "type": "faldo:Region",
-                    "faldo:begin": {
-                        "type": "faldo:FuzzyPosition" if "<" in start else "faldo:ExactPosition",
-                        "faldo:position": start_pos,
-                        "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                    },
-                    "faldo:end": {
-                        "type": "faldo:FuzzyPosition" if ">" in end else "faldo:ExactPosition",
-                        "faldo:position": end_pos,
-                        "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                    }
-                }
-            }
-        else:
-            # Base-Range
-            # example: 340..565
-            start, end = int(start), int(end)
-            location = FeatureLocation(start - 1, end)
-            faldo_json = {
-                "@context": f"{context_url}",
-                "id": f"{id_base_url}{insdc_id}",
-                "faldo:location": {
-                    "type": "faldo:Region",
-                    "faldo:begin": {
-                        "type": "faldo:ExactPosition",
-                        "faldo:position": int(location.start) + 1,
-                        "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                    },
-                    "faldo:end": {
-                        "type": "faldo:ExactPosition",
-                        "faldo:position": int(location.end),
-                        "faldo:reference": f"insdc:{accession.split('-')[-1]}"
-                    }
-                }
-            }
-        return json.dumps(faldo_json, indent=2)
-    
-    return "Error: Invalid INSDC ID format."
-
-def faldo_to_insdc(faldo_json, id_base_url):
-    """
-    Convert FALDO JSON-LD to ID containing INSDC Location notation
+    Convert INSDC ID with location notation into FALDO JSON-LD.
     """
     try:
-        faldo_data = json.loads(faldo_json)
-        id_url = faldo_data.get("id", "")
+        # Split into accession and location string
+        if ':' not in insdc_id:
+            raise ValueError("Missing ':' in INSDC ID")
+
+        prefix, location_str = insdc_id.split(":", 1)
+        accession = prefix.split("-")[-1]
+
+        # Parse INSDC Location into AST
+        ast = parse_insdc_location(location_str)
+
+        # Convert AST to FALDO JSON
+        location_json = location_node_to_faldo(ast, accession)
+
+        # Wrap as full JSON-LD
+        full_id = prefix + "-" + location_str
+        return wrap_faldo(location_json, full_id, id_base_url, context_url)
+
+    except Exception as e:
+        raise RuntimeError(f"Failed to convert INSDC ID to FALDO: {e}")
+
+def faldo_to_insdc(location, sequence=None):
+    location_type = location.get("type")
+
+    # Base case: Exact position
+    if location_type == EXACT_POSITION:
+        ref = location.get("reference", "")
+        pos = location["position"]
+        if sequence and ref == f"insdc:{sequence}":
+            return str(pos)  # same sequence, omit prefix
+        else:
+            return f"{ref.replace('insdc:', '')}:{pos}"
+
+    # Remote reference region and general Region
+    elif location_type == REGION:
+        begin = location["begin"]
+        end = location["end"]
+        begin_ref = extract_reference(begin)
+        end_ref = extract_reference(end)
+
+        if begin_ref != end_ref:
+            raise ValueError("begin and end references are different, cannot convert to INSDC safely")
+
+        # Fuzzy judgment (discriminate from structure)
+        if begin["type"] == FUZZY_POSITION and end["type"] == FUZZY_POSITION:
+            return f"<{begin['position']}..>{end['position']}"
+        elif begin["type"] == FUZZY_POSITION:
+            return f"<{begin['position']}..{end['position']}"
+        elif end["type"] == FUZZY_POSITION:
+            return f"{begin['position']}..>{end['position']}"
         
-        if not id_url:
-            return "Error: Invalid FALDO JSON-LD format."
+        # Normal or remote reference range
+        if begin_ref == f"insdc:{sequence}":
+            begin_str = faldo_to_insdc(begin, sequence)
+            end_str = faldo_to_insdc(end, sequence)
+            
+            # strand = begin.get("strand") or begin.get("faldo:strand")
+            strand = location.get("strand")
+            if strand == NEGATIVE_STRAND:
+                return f"complement({begin['position']}..{end['position']})"
+            else:
+                return f"{begin_str}..{end_str}"
 
-        parsed_id_url = urllib.parse.urlparse(id_url)
-        insdc_id = parsed_id_url.path[1:]    # Remove the first slash
-        return f"{insdc_id}"
+        else:
+            return f"{begin_ref.replace('insdc:', '')}:{begin['position']}..{end['position']}"
 
-    except json.JSONDecodeError:
-        return "Error: Invalid JSON input."
+    elif location_type == LIST_OF_REGIONS:
+        members = location.get("members", [])
+        sorted_members = sorted(members, key=lambda m: m.get("order", 0))
+        inner = f"join({','.join(faldo_to_insdc(m, sequence) for m in sorted_members)})"
+
+        strand = location.get("strand")
+        if strand == NEGATIVE_STRAND:
+            return f"complement({inner})"
+        return inner
+
+    # Complement
+    elif location_type == COMPLEMENT:
+        inner_location = faldo_to_insdc(location["location"], sequence)
+        return f"complement({inner_location})"
+
+    # In-between position
+    elif location_type == INBETWEEN_POSITION:
+        before = location["before"]["position"]
+        after = location["after"]["position"]
+        left = min(before, after)
+        right = max(before, after)
+        return f"{left}^{right}"
+
+    # In-range position
+    elif location_type == INRANGE_POSITION:
+        begin = faldo_to_insdc(location["begin"], sequence)
+        end = faldo_to_insdc(location["end"], sequence)
+        return f"{begin}.{end}"
+
+    return ""
+
+def faldo_to_insdc_wrapper(faldo_json):
+    full_id = faldo_json["id"].split("/")[-1]
+    assembly_sequence = "-".join(full_id.split("-")[:-1])  # Get the assembly and sequence parts in the ID
+    sequence = assembly_sequence.split('-')[-1]
+    insdc_location = faldo_to_insdc(faldo_json["location"], sequence=sequence)
+    return f"{assembly_sequence}:{insdc_location}"
+
+def extract_reference(pos):
+    if pos["type"] == FUZZY_POSITION:
+        return pos.get("reference") or pos.get("subPosition", {}).get("reference")
+    else:
+        return pos.get("reference", "")
 
 def main():
     parser = argparse.ArgumentParser(description="INSDC ID ⇔ FALDO JSON-LD Converter")
@@ -382,11 +137,12 @@ def main():
     context_url = args.context_url.strip()
 
     if input_value.startswith("{"):
-        result = faldo_to_insdc(input_value, id_base_url)
+        result = faldo_to_insdc_wrapper(json.loads(input_value))
+        print(result)
     else:
         result = insdc_to_faldo(input_value, id_base_url, context_url)
+        formatted_data = json.dumps(result, indent=2)
+        print(formatted_data)
     
-    print(result)
-
 if __name__ == "__main__":
     main()

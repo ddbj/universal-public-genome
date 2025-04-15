@@ -28,11 +28,11 @@ $ python main.py -i 'GCA000000000-J00000:467'
 ```
 {
   "@context": "http://example.org/context/faldo.jsonld",
-  "id": "http://example.org/GCA000000000-J00000:467",
-  "faldo:location": {
-    "type": "faldo:ExactPosition",
-    "faldo:position": 467,
-    "faldo:reference": "insdc:J00000"
+  "id": "http://example.org/GCA000000000-J00000-467",
+  "location": {
+    "type": "ExactPosition",
+    "position": 467,
+    "reference": "insdc:J00000"
   }
 }
 ```
@@ -40,11 +40,11 @@ $ python main.py -i 'GCA000000000-J00000:467'
 
 $ python main.py -i '{
   "@context": "http://example.org/context/faldo.jsonld",
-  "id": "http://example.org/GCA000000000-J00000:467",
-  "faldo:location": {
-    "type": "faldo:ExactPosition",
-    "faldo:position": 467,
-    "faldo:reference": "insdc:J00000"
+  "id": "http://example.org/GCA000000000-J00000-467",
+  "location": {
+    "type": "ExactPosition",
+    "position": 467,
+    "reference": "insdc:J00000"
   }
 }'
 ```
@@ -55,11 +55,11 @@ $ echo 'GCA000000000-J00000:467' | python main.py
 ```
 {
   "@context": "http://example.org/context/faldo.jsonld",
-  "id": "http://example.org/GCA000000000-J00000:467",
-  "faldo:location": {
-    "type": "faldo:ExactPosition",
-    "faldo:position": 467,
-    "faldo:reference": "insdc:J00000"
+  "id": "http://example.org/GCA000000000-J00000-467",
+  "location": {
+    "type": "ExactPosition",
+    "position": 467,
+    "reference": "insdc:J00000"
   }
 }
 ```

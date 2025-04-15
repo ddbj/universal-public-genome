@@ -1,0 +1,8 @@
+EXACT_POSITION = "ExactPosition"
+REGION = "Region"
+COMPLEMENT = "Complement"
+LIST_OF_REGIONS = "ListOfRegions"
+INBETWEEN_POSITION = "InBetweenPosition"
+FUZZY_POSITION = "FuzzyPosition"
+INRANGE_POSITION = "InRangePosition"
+NEGATIVE_STRAND = "NegativeStrand"
