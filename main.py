@@ -2,7 +2,7 @@ import argparse
 import sys
 import json
 from parser import parse_insdc_location, location_node_to_faldo, wrap_faldo
-from const import EXACT_POSITION, REGION, COMPLEMENT, LIST_OF_REGIONS, INBETWEEN_POSITION, FUZZY_POSITION, INRANGE_POSITION, NEGATIVE_STRAND
+from const import POSITION, EXACT_POSITION, REGION, LIST_OF_REGIONS, INBETWEEN_POSITION, FUZZY_POSITION, INRANGE_POSITION, NEGATIVE_STRAND
 
 def insdc_to_faldo(insdc_id: str, id_base_url: str, context_url: str) -> dict:
     """
@@ -31,9 +31,12 @@ def insdc_to_faldo(insdc_id: str, id_base_url: str, context_url: str) -> dict:
 
 def faldo_to_insdc(location, sequence=None):
     location_type = location.get("type")
+    
+    if location_type == POSITION:
+        pos = location["position"]
+        return str(pos)
 
-    # Base case: Exact position
-    if location_type == EXACT_POSITION:
+    elif location_type == EXACT_POSITION:
         ref = location.get("reference", "")
         pos = location["position"]
         if sequence and ref == f"insdc:{sequence}":
@@ -45,8 +48,8 @@ def faldo_to_insdc(location, sequence=None):
     elif location_type == REGION:
         begin = location["begin"]
         end = location["end"]
-        begin_ref = extract_reference(begin)
-        end_ref = extract_reference(end)
+        begin_ref = begin.get("reference")
+        end_ref = end.get("reference")
 
         if begin_ref != end_ref:
             raise ValueError("begin and end references are different, cannot convert to INSDC safely")
@@ -64,7 +67,6 @@ def faldo_to_insdc(location, sequence=None):
             begin_str = faldo_to_insdc(begin, sequence)
             end_str = faldo_to_insdc(end, sequence)
             
-            # strand = begin.get("strand") or begin.get("faldo:strand")
             strand = location.get("strand")
             if strand == NEGATIVE_STRAND:
                 return f"complement({begin['position']}..{end['position']})"
@@ -75,7 +77,7 @@ def faldo_to_insdc(location, sequence=None):
             return f"{begin_ref.replace('insdc:', '')}:{begin['position']}..{end['position']}"
 
     elif location_type == LIST_OF_REGIONS:
-        members = location.get("members", [])
+        members = location.get("member", [])
         sorted_members = sorted(members, key=lambda m: m.get("order", 0))
         inner = f"join({','.join(faldo_to_insdc(m, sequence) for m in sorted_members)})"
 
@@ -84,12 +86,6 @@ def faldo_to_insdc(location, sequence=None):
             return f"complement({inner})"
         return inner
 
-    # Complement
-    elif location_type == COMPLEMENT:
-        inner_location = faldo_to_insdc(location["location"], sequence)
-        return f"complement({inner_location})"
-
-    # In-between position
     elif location_type == INBETWEEN_POSITION:
         before = location["before"]["position"]
         after = location["after"]["position"]
@@ -97,7 +93,6 @@ def faldo_to_insdc(location, sequence=None):
         right = max(before, after)
         return f"{left}^{right}"
 
-    # In-range position
     elif location_type == INRANGE_POSITION:
         begin = faldo_to_insdc(location["begin"], sequence)
         end = faldo_to_insdc(location["end"], sequence)
@@ -111,12 +106,6 @@ def faldo_to_insdc_wrapper(faldo_json):
     sequence = assembly_sequence.split('-')[-1]
     insdc_location = faldo_to_insdc(faldo_json["location"], sequence=sequence)
     return f"{assembly_sequence}:{insdc_location}"
-
-def extract_reference(pos):
-    if pos["type"] == FUZZY_POSITION:
-        return pos.get("reference") or pos.get("subPosition", {}).get("reference")
-    else:
-        return pos.get("reference", "")
 
 def main():
     parser = argparse.ArgumentParser(description="INSDC ID ⇔ FALDO JSON-LD Converter")

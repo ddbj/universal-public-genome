@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from const import EXACT_POSITION, REGION, LIST_OF_REGIONS, INBETWEEN_POSITION, FUZZY_POSITION, INRANGE_POSITION, NEGATIVE_STRAND
+from const import POSITION, EXACT_POSITION, REGION, LIST_OF_REGIONS, INBETWEEN_POSITION, FUZZY_POSITION, INRANGE_POSITION, NEGATIVE_STRAND
 
 # Base class for all location nodes
 class LocationNode(ABC):
@@ -187,7 +187,7 @@ def parse_insdc_location(s: str) -> LocationNode:
 
 # Function to create a position object (strand support)
 # def make_position(pos, accession, strand=None):
-def make_position(pos, accession):
+def make_position_exact(pos, accession):
     pos_obj = {
         "type": EXACT_POSITION,
         "position": pos,
@@ -209,35 +209,44 @@ def location_node_to_faldo(node: LocationNode, accession: str, strand=None) -> d
         dict: A FALDO JSON-LD fragment representing the location
     """
     if isinstance(node, SinglePositionNode):
-        return make_position(node.position, accession)
+        return make_position_exact(node.position, accession)
 
     elif isinstance(node, InBetweenNode):
+        # Helper to wrap a type position with no type using FALDO's extension
+        def make_position_nonetype(pos, accession):
+            obj = {
+                "position": pos,
+                "reference": f"insdc:{accession}"
+            }
+            return obj
+
         # FALDO InBetweenPosition: has 'after' and 'before' references
         return {
             "type": INBETWEEN_POSITION,
-            "after": make_position(node.left, accession),
-            "before": make_position(node.right, accession)
+            "after": make_position_nonetype(node.left, accession),
+            "before": make_position_nonetype(node.right, accession)
         }
 
     elif isinstance(node, InRangeNode):
+        # Helper to wrap a type position with no type using FALDO's extension
+        def make_position(pos, accession):
+            obj = {
+                "type": POSITION,
+                "position": pos,
+                "reference": f"insdc:{accession}"
+            }
+            return obj
+
         # FALDO InRangePosition: unknown position within a known interval
         return {
             "type": INRANGE_POSITION,
-            "begin": {
-                "type": EXACT_POSITION,
-                "position": node.start,
-                "reference": f"insdc:{accession}"
-            },
-            "end": {
-                "type": EXACT_POSITION,
-                "position": node.end,
-                "reference": f"insdc:{accession}"
-            }
+            "begin": make_position(node.start, accession),
+            "end": make_position(node.end, accession)
         }
 
     elif isinstance(node, FuzzyRangeNode):
         # Helper to wrap a fuzzy position using FALDO's extension
-        def fuzzy(pos):
+        def make_position_fuzzy(pos):
             obj = {
                 "type": FUZZY_POSITION,
                 "position": pos,
@@ -245,8 +254,8 @@ def location_node_to_faldo(node: LocationNode, accession: str, strand=None) -> d
             }
             return obj
 
-        begin = fuzzy(node.start) if node.is_fuzzy_start else make_position(node.start, accession)
-        end = fuzzy(node.end) if node.is_fuzzy_end else make_position(node.end, accession)
+        begin = make_position_fuzzy(node.start) if node.is_fuzzy_start else make_position_exact(node.start, accession)
+        end = make_position_fuzzy(node.end) if node.is_fuzzy_end else make_position_exact(node.end, accession)
 
         return {
             "type": REGION,
@@ -262,7 +271,7 @@ def location_node_to_faldo(node: LocationNode, accession: str, strand=None) -> d
         return {
             "type": LIST_OF_REGIONS,
             **({"strand": strand} if strand else {}),
-            "members": [
+            "member": [
                 {
                     **location_node_to_faldo(member, accession),
                     "order": idx + 1
@@ -274,8 +283,8 @@ def location_node_to_faldo(node: LocationNode, accession: str, strand=None) -> d
         # Remote ranges use a different accession in their reference
         return {
             "type": REGION,
-            "begin": make_position(node.start, node.accession),
-            "end": make_position(node.end, node.accession)
+            "begin": make_position_exact(node.start, node.accession),
+            "end": make_position_exact(node.end, node.accession)
         }
 
     else:
