@@ -25,10 +25,10 @@ options:
 ## Examples
 
 $ python main.py -i 'GCA000000000-J00000:467'
-```
+```json
 {
   "@context": "http://example.org/context/faldo.jsonld",
-  "id": "http://example.org/GCA000000000-J00000-467",
+  "id": "http://example.org/GCA000000000-J00000:467",
   "location": {
     "type": "ExactPosition",
     "position": 467,
@@ -40,7 +40,7 @@ $ python main.py -i 'GCA000000000-J00000:467'
 
 $ python main.py -i '{
   "@context": "http://example.org/context/faldo.jsonld",
-  "id": "http://example.org/GCA000000000-J00000-467",
+  "id": "http://example.org/GCA000000000-J00000:467",
   "location": {
     "type": "ExactPosition",
     "position": 467,
@@ -51,20 +51,51 @@ $ python main.py -i '{
 GCA000000000-J00000:467
 ```
 
-$ echo 'GCA000000000-J00000:467' | python main.py
-```
+$ echo 'GCA000000000-J00000:join(complement(4918..5163),complement(2691..4571))' | python main.py --context-url http://example2.org/context/faldo.jsonld --id-base-url http://example3.org > sample.json
+```json
+# sample.json
 {
-  "@context": "http://example.org/context/faldo.jsonld",
-  "id": "http://example.org/GCA000000000-J00000-467",
+  "@context": "http://example2.org/context/faldo.jsonld",
+  "id": "http://example3.org/GCA000000000-J00000:join(complement(4918..5163),complement(2691..4571))",
   "location": {
-    "type": "ExactPosition",
-    "position": 467,
-    "reference": "insdc:J00000"
+    "type": "ListOfRegions",
+    "member": [
+      {
+        "type": "Region",
+        "begin": {
+          "type": "ExactPosition",
+          "position": 4918,
+          "reference": "insdc:J00000"
+        },
+        "end": {
+          "type": "ExactPosition",
+          "position": 5163,
+          "reference": "insdc:J00000"
+        },
+        "strand": "NegativeStrand",
+        "order": 1
+      },
+      {
+        "type": "Region",
+        "begin": {
+          "type": "ExactPosition",
+          "position": 2691,
+          "reference": "insdc:J00000"
+        },
+        "end": {
+          "type": "ExactPosition",
+          "position": 4571,
+          "reference": "insdc:J00000"
+        },
+        "strand": "NegativeStrand",
+        "order": 2
+      }
+    ]
   }
 }
 ```
 
 $ cat sample.json | python main.py
 ```
-GCA000000000-J00000:467
+GCA000000000-J00000:join(complement(4918..5163),complement(2691..4571))
 ```
