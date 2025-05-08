@@ -23,7 +23,7 @@ def insdc_to_faldo(insdc_id: str, id_base_url: str, context_url: str) -> dict:
         location_json = location_node_to_faldo(ast, accession)
 
         # Wrap as full JSON-LD
-        full_id = prefix + "-" + location_str
+        full_id = prefix + ":" + location_str
         return wrap_faldo(location_json, full_id, id_base_url, context_url)
 
     except Exception as e:
@@ -102,7 +102,7 @@ def faldo_to_insdc(location, sequence=None):
 
 def faldo_to_insdc_wrapper(faldo_json):
     full_id = faldo_json["id"].split("/")[-1]
-    assembly_sequence = "-".join(full_id.split("-")[:-1])  # Get the assembly and sequence parts in the ID
+    assembly_sequence = full_id.split(":")[:-1][0]  # Get the assembly and sequence parts in the ID
     sequence = assembly_sequence.split('-')[-1]
     insdc_location = faldo_to_insdc(faldo_json["location"], sequence=sequence)
     return f"{assembly_sequence}:{insdc_location}"
