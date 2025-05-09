@@ -7,8 +7,8 @@ To address this problem, we develop a tool to convert these different notations 
 
 ## Command Line Interface
 
-$ python main.py -h
 ```
+$ python main.py -h
 usage: main.py [-h] [-i [INPUT]] [--context-url CONTEXT_URL] [--id-base-url ID_BASE_URL]
 
 INSDC ID ⇔ FALDO JSON-LD Converter
@@ -24,7 +24,14 @@ options:
 
 ## Examples
 
+### Conversion from ID to FALDO JSON-LD
+
+Simple input:
+```bash
 $ python main.py -i 'GCA000000000-J00000:467'
+```
+
+Expected output:
 ```json
 {
   "@context": "http://example.org/context/faldo.jsonld",
@@ -37,23 +44,13 @@ $ python main.py -i 'GCA000000000-J00000:467'
 }
 ```
 
-
-$ python main.py -i '{
-  "@context": "http://example.org/context/faldo.jsonld",
-  "id": "http://example.org/GCA000000000-J00000:467",
-  "location": {
-    "type": "ExactPosition",
-    "position": 467,
-    "reference": "insdc:J00000"
-  }
-}'
-```
-GCA000000000-J00000:467
+Specify the context URL and the base URL of the ID, and pass the ID as standard input. Output the result to a file:
+```bash
+$ echo 'GCA000000000-J00000:join(complement(4918..5163),complement(2691..4571))' | python main.py --context-url http://example2.org/context/faldo.jsonld --id-base-url http://example3.org > sample.jsonld
 ```
 
-$ echo 'GCA000000000-J00000:join(complement(4918..5163),complement(2691..4571))' | python main.py --context-url http://example2.org/context/faldo.jsonld --id-base-url http://example3.org > sample.json
+Expected output:
 ```json
-# sample.json
 {
   "@context": "http://example2.org/context/faldo.jsonld",
   "id": "http://example3.org/GCA000000000-J00000:join(complement(4918..5163),complement(2691..4571))",
@@ -95,7 +92,32 @@ $ echo 'GCA000000000-J00000:join(complement(4918..5163),complement(2691..4571))'
 }
 ```
 
-$ cat sample.json | python main.py
+### Conversion from FALDO JSON-LD to ID
+
+Passing file contents as standard input:
+```bash
+$ cat sample.jsonld | python main.py
 ```
+
+Expected output（If the contents of sample.jsonld are to be those of the example immediately above）:
+```text
 GCA000000000-J00000:join(complement(4918..5163),complement(2691..4571))
+```
+
+Specify JSON content directly in the -i option:
+```bash
+$ python main.py -i '{
+  "@context": "http://example.org/context/faldo.jsonld",
+  "id": "http://example.org/GCA000000000-J00000:467",
+  "location": {
+    "type": "ExactPosition",
+    "position": 467,
+    "reference": "insdc:J00000"
+  }
+}'
+```
+
+Expected output:
+```text
+GCA000000000-J00000:467
 ```
