@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 import json
 from parser import parse_insdc_location, location_node_to_faldo, wrap_faldo
@@ -107,19 +108,30 @@ def faldo_to_insdc_wrapper(faldo_json):
     insdc_location = faldo_to_insdc(faldo_json["location"], sequence=sequence)
     return f"{assembly_sequence}:{insdc_location}"
 
+def read_input_data(input_arg):
+    has_stdin = not sys.stdin.isatty()
+
+    if input_arg:
+        if os.path.isfile(input_arg):
+            with open(input_arg, 'r', encoding='utf-8') as f:
+                return f.read()
+        return input_arg
+    elif has_stdin:
+        return sys.stdin.read()
+    else:
+        # If there is no input, an error is generated and the system terminates.
+        sys.stderr.write("Error: No input provided. Use -i option or provide input via stdin.\n")
+        sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(description="INSDC ID ⇔ FALDO JSON-LD Converter")
-    parser.add_argument("-i", "--input", nargs="?", default=None, help="ID or FALDO JSON-LD to be converted")
+    parser.add_argument("-i", "--input", help="Input value or file path (fallback to stdin if omitted)")
     parser.add_argument("--context-url", type=str, default="http://example.org/context/faldo.jsonld", help="URL of context")
     parser.add_argument("--id-base-url", type=str, default="http://example.org/", help="Base URL for ID")
     args = parser.parse_args()
     
-    # If no input value is specified
-    if args.input is None:
-        input_value = sys.stdin.read().strip()  # Read from standard input
-    else:
-        input_value = args.input.strip()
-    
+    input_value = read_input_data(args.input)
+
     id_base_url = args.id_base_url.strip()
     # Add if it does not end in '/'.
     id_base_url = id_base_url if id_base_url.endswith('/') else id_base_url + '/'

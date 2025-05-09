@@ -94,7 +94,12 @@ Expected output:
 
 ### Conversion from FALDO JSON-LD to ID
 
-Passing file contents as standard input:
+Input via file:
+```bash
+$ python main.py -i sample.jsonld
+```
+
+Input via standard input (same as using -i with a file):
 ```bash
 $ cat sample.jsonld | python main.py
 ```
