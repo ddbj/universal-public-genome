@@ -290,14 +290,13 @@ def location_node_to_faldo(node: LocationNode, accession: str, strand=None) -> d
     else:
         raise TypeError(f"Unsupported LocationNode type: {type(node)}")
     
-def wrap_faldo(location_json: dict, full_id: str, id_base_url: str, context_url: str) -> dict:
+def wrap_faldo(location_json: dict, encoded_id_url: str, context_url: str) -> dict:
     """
     Wrap the FALDO location into a complete JSON-LD object.
 
     Args:
         location_json (dict): The internal location structure
-        full_id (str): The full ID string (e.g., GCA000000000-J00000:complement(...))
-        id_base_url (str): Base URL to prepend for "id"
+        encoded_id_url (str): Encoded ID（URL)
         context_url (str): URL for @context
 
     Returns:
@@ -305,6 +304,6 @@ def wrap_faldo(location_json: dict, full_id: str, id_base_url: str, context_url:
     """
     return {
         "@context": context_url,
-        "id": f"{id_base_url}{full_id}",
+        "id": encoded_id_url,
         "location": location_json
     }

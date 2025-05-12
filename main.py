@@ -2,6 +2,8 @@ import argparse
 import os
 import sys
 import json
+import urllib.parse
+import re
 from parser import parse_insdc_location, location_node_to_faldo, wrap_faldo
 from const import POSITION, EXACT_POSITION, REGION, LIST_OF_REGIONS, INBETWEEN_POSITION, FUZZY_POSITION, INRANGE_POSITION, NEGATIVE_STRAND
 
@@ -25,7 +27,9 @@ def insdc_to_faldo(insdc_id: str, id_base_url: str, context_url: str) -> dict:
 
         # Wrap as full JSON-LD
         full_id = prefix + ":" + location_str
-        return wrap_faldo(location_json, full_id, id_base_url, context_url)
+        encoded_full_id = urllib.parse.quote(full_id, safe='/')
+        encoded_id_url = id_base_url + encoded_full_id
+        return wrap_faldo(location_json, encoded_id_url, context_url)
 
     except Exception as e:
         raise RuntimeError(f"Failed to convert INSDC ID to FALDO: {e}")
@@ -103,7 +107,7 @@ def faldo_to_insdc(location, sequence=None):
 
 def faldo_to_insdc_wrapper(faldo_json):
     full_id = faldo_json["id"].split("/")[-1]
-    assembly_sequence = full_id.split(":")[:-1][0]  # Get the assembly and sequence parts in the ID
+    assembly_sequence = re.split(r':|%3A', full_id)[:-1][0]  # Get the assembly and sequence parts in the ID
     sequence = assembly_sequence.split('-')[-1]
     insdc_location = faldo_to_insdc(faldo_json["location"], sequence=sequence)
     return f"{assembly_sequence}:{insdc_location}"
@@ -130,7 +134,8 @@ def main():
     parser.add_argument("--id-base-url", type=str, default="http://example.org/", help="Base URL for ID")
     args = parser.parse_args()
     
-    input_value = read_input_data(args.input)
+    # Get input value and remove trailing newline code
+    input_value = read_input_data(args.input).rstrip('\r\n')
 
     id_base_url = args.id_base_url.strip()
     # Add if it does not end in '/'.

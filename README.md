@@ -35,7 +35,7 @@ Expected output:
 ```json
 {
   "@context": "http://example.org/context/faldo.jsonld",
-  "id": "http://example.org/GCA000000000-J00000:467",
+  "id": "http://example.org/GCA000000000-J00000%3A467",
   "location": {
     "type": "ExactPosition",
     "position": 467,
@@ -53,7 +53,7 @@ Expected output:
 ```json
 {
   "@context": "http://example2.org/context/faldo.jsonld",
-  "id": "http://example3.org/GCA000000000-J00000:join(complement(4918..5163),complement(2691..4571))",
+  "id": "http://example3.org/GCA000000000-J00000%3Ajoin%28complement%284918..5163%29%2Ccomplement%282691..4571%29%29",
   "location": {
     "type": "ListOfRegions",
     "member": [
@@ -113,7 +113,7 @@ Specify JSON content directly in the -i option:
 ```bash
 $ python main.py -i '{
   "@context": "http://example.org/context/faldo.jsonld",
-  "id": "http://example.org/GCA000000000-J00000:467",
+  "id": "http://example.org/GCA000000000-J00000%3A467",
   "location": {
     "type": "ExactPosition",
     "position": 467,
