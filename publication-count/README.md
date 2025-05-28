@@ -29,7 +29,7 @@
         |項目名|説明|
         |:--|:--|
         |gz_file|ダウンロードしたgene2accession.gzを配置したパス|
-        |db_file|ene2accession.gzをsqlite化したgene2accession.dbを出力するパス(30GB超のファイルが出力されるので、容量の空きがある場所にしてください)|
+        |db_file|gene2accession.gzをsqlite化したgene2accession.dbを出力するパス(30GB超のファイルが出力されるので、容量の空きがある場所にしてください)|
         |working_dir|ワーキングディレクトリ（この項目に指定された場所に、datasetsによってダウンロードされたファイルを配置したり、結果のGFFファイルを出力します）|
         |ncbi_dataset_zip_file|NCBI datasets command-line toolsでダウンロードされるファイル名（基本的にはncbi_dataset.zipのままで問題ないはずです）|
         |datasets_tool_path|NCBI datasets command-line toolsのパス（パスを通してある場合は設定不要です）|
