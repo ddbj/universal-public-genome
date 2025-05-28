@@ -178,3 +178,6 @@ cython_debug/
 
 # DS_Store (Mac)
 .DS_Store
+
+# setting file for publication-count
+config.ini

@@ -1,0 +1,55 @@
+PREFIX mesh: <http://id.nlm.nih.gov/mesh/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX sio: <http://semanticscience.org/resource/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX cid: <http://rdf.ncbi.nlm.nih.gov/pubchem/compound/>
+PREFIX pcvocab: <http://rdf.ncbi.nlm.nih.gov/pubchem/vocabulary#>
+PREFIX pubchem: <http://rdf.ncbi.nlm.nih.gov/pubchem/>
+PREFIX bao: <http://www.bioassayontology.org/bao#>
+
+SELECT 
+DISTINCT ?ncbigene (COUNT(?ref_id) AS ?ref_count)
+WHERE {
+  # Co-occurrence information with literature (sbj or obj)
+  GRAPH pubchem:reference {
+      ?ref pcvocab:discussesAsDerivedByTextMining ?sbj, ?obj ;
+           dcterms:identifier ?ref_id .
+  }
+  FILTER (STRSTARTS(STR(?ref_id), "https://pubmed") && !CONTAINS(STR(?ref_id), "PMC"))
+
+  # Multiple types of co-occurrence relationships (Gene-Gene, Gene-Compound, Gene-Disease)
+  GRAPH pubchem:cooccurrence {
+    ?s a ?relation_type ;
+       rdf:subject ?sbj ;
+       rdf:object ?obj .
+    FILTER (
+      ?relation_type IN (
+        sio:SIO_001437,  # Gene-Gene
+        sio:SIO_001087,  # Gene-Compound
+        sio:SIO_001097   # Gene-Disease
+      )
+    )
+  }
+
+  # Mapping from gene IDs to ncbiene URIs (for both ?sbj and ?obj)
+  GRAPH pubchem:gene {
+    {
+      ?sbj_gene bao:BAO_0002870 ?sbj.
+      ?sbj_gene rdfs:seeAlso ?ncbigene.
+    }
+    UNION
+    {
+      ?obj_gene bao:BAO_0002870 ?obj.
+      ?obj_gene rdfs:seeAlso ?ncbigene.
+    }
+  }
+
+  # Target ncbigene
+  VALUES ?ncbigene {
+    <http://identifiers.org/ncbigene:$ncbigene>
+  }
+  FILTER(STRSTARTS(STR(?ncbigene), "http://identifiers.org/ncbigene:"))
+}
+GROUP BY ?ncbigene
