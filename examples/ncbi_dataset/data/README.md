@@ -52,4 +52,9 @@ python publication-count-gff.py -i GCF_000968255.1
 課題
 *「PubChem cooccurrence のGeneが言及された文献数を取得する 」SPARQLは現時点ではGene-Geneで共起のSubject側で言及されたncbigeneのみ取得。ObjectのgeneやGene-Compound, Gene-DiseaseのGeneは未取得なのでSPARQLを更新する必要がある
 
+### 4.5 PubTator Central からGeneが言及された文献数を取得する
+* https://is.gd/UoQmOP 「文献数の取得」
+* https://is.gd/iunRSw 「遺伝子ID（NCBI Gene ID）と文献情報（PubMed ID）の関係」
+
+
 ### 5. JBrowseTracに表示するための以下のようなGFFを出力する
