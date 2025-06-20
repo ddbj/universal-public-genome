@@ -65,19 +65,28 @@ sql = """
     WHERE protein_accession = ?
 """
 
-# SPARQL endpoint
-endpoint_url = "https://rdfportal.org/pubchem/sparql"
+# pubchem SPARQL endpoint
+endpoint_url_pubchem = "https://rdfportal.org/pubchem/sparql"
 
-sparql_template_path = os.path.join(script_dir, "publication-count.rq")
-with open(sparql_template_path, "r", encoding="utf-8") as f:
-    sparql_template = Template(f.read())
+sparql_path_pubchem = os.path.join(script_dir, "publication-count-pubchem.rq")
+with open(sparql_path_pubchem, "r", encoding="utf-8") as f:
+    sparql_template_pubchem = Template(f.read())
+
+# pubtator SPARQL endpoint
+endpoint_url_pubtator = "https://rdfportal.org/ncbi/sparql"
+
+sparql_path_pubtator = os.path.join(script_dir, "publication-count-pubtator.rq")
+with open(sparql_path_pubtator, "r", encoding="utf-8") as f:
+    sparql_template_pubtator = Template(f.read())
+
+print("Obtaining counts of publications that mention genes...")
 
 # Parse .gbff in ZIP file with Biopython
 with zipfile.ZipFile(dataset_file, "r") as zf:
     with zf.open(gbff_file) as gbff_raw:
         gbff_text = TextIOWrapper(gbff_raw, encoding="utf-8")
-
         output_gff_records = []
+        cnt=0 
         for record in SeqIO.parse(gbff_text, "genbank"):
             for feature in record.features:
                 if feature.type == "CDS":
@@ -87,8 +96,8 @@ with zipfile.ZipFile(dataset_file, "r") as zf:
                     # Get protein_id (may not exist)
                     protein_id = feature.qualifiers.get("protein_id", ["N/A"])[0]
 
-                    print(f"Location: {location_str}")
-                    print(f"Protein ID: {protein_id}")
+                    # print(f"Location: {location_str}")
+                    # print(f"Protein ID: {protein_id}")
 
                     # Changed to SQLite because it is time consuming
                     # cmd = "zcat < gene2accession.gz | grep " + protein_id
@@ -105,16 +114,16 @@ with zipfile.ZipFile(dataset_file, "r") as zf:
                     row = cur.fetchone()
                     if row is not None:
                         ncbigene = row["gene_id"]
-                        print(f"NCBI Gene ID: {ncbigene}")
+                        # print(f"NCBI Gene ID: {ncbigene}")
                     else:
-                        print(f"NCBI Gene ID: N/A")
-                        print("------------------------------------------")
+                        # print(f"NCBI Gene ID: N/A")
+                        # print("------------------------------------------")
                         continue                        
                     
+                    # Retrieve data from PubChem cooccurrence via SPARQL ==================
                     # Set parameter for SPARQL query
-                    # TODO: Correct ncbigene to actual value
-                    sparql = sparql_template.substitute(ncbigene=ncbigene)
-                    # sparql = sparql_template.substitute(ncbigene="100125779")
+                    sparql = sparql_template_pubchem.substitute(ncbigene=ncbigene)
+                    # sparql = sparql_template_pubchem.substitute(ncbigene="100125779")
 
                     # Set request parameter and header
                     params = {
@@ -125,53 +134,97 @@ with zipfile.ZipFile(dataset_file, "r") as zf:
                     }
 
                     # Executed with a GET request
-                    response = requests.get(endpoint_url, params=params, headers=headers)
+                    response_pubchem = requests.get(endpoint_url_pubchem, params=params, headers=headers)
 
                     # Display results retrieved in JSON
-                    ref_count = "."
-                    if response.status_code == 200:
-                        bindings = response.json()["results"]["bindings"]
+                    ref_count_pubchem = 0
+                    if response_pubchem.status_code == 200:
+                        bindings = response_pubchem.json()["results"]["bindings"]
 
-                        if not bindings:
-                            print("No SPARQL results found.")
-                        else:
+                        # if not bindings:
+                        #     print("No SPARQL results found.")
+                        # else:
+                        if bindings:
                             for binding in bindings:
-                                print(f"NCBI Gene URL: {binding["ncbigene"]["value"]}")
-                                print(f"Ref Count: {binding["ref_count"]["value"]}")
-                                ref_count = binding["ref_count"]["value"]
+                                # print(f"NCBI Gene URL: {binding["ncbigene"]["value"]}")
+                                # print(f"Ref Count: {binding["ref_count"]["value"]}")
+                                ref_count_pubchem = int(binding["ref_count"]["value"])
                     else:
-                        print(f"Error: {response.status_code}")
-                        print(response.text)
+                        print(f"Error: {response_pubchem.status_code}")
+                        print(response_pubchem.text)
+                    # =====================================================================
+
+                    # Retrieve data from PubTator Central via SPARQL ======================
+                    sparql = sparql_template_pubtator.substitute(ncbigene=ncbigene)
+                    # sparql = sparql_template_pubtator.substitute(ncbigene="26131688")
+
+                    # Set request parameter and header
+                    params = {
+                        "query": sparql
+                    }
+                    headers = {
+                        "Accept": "application/sparql-results+json"
+                    }
+
+                    # Executed with a GET request
+                    response_pubtator = requests.get(endpoint_url_pubtator, params=params, headers=headers)
+
+
+                    # Display results retrieved in JSON
+                    ref_count_pubtator = 0
+                    if response_pubtator.status_code == 200:
+                        bindings = response_pubtator.json()["results"]["bindings"]
+                        # if not bindings:
+                        #     print("No SPARQL results found.")
+                        # else:
+                        if bindings:
+                            for binding in bindings:
+                                # print(f"NCBI Gene URL: {binding["geneId"]["value"]}")
+                                # print(f"Ref Count: {binding["refCount"]["value"]}")
+                                ref_count_pubtator = int(binding["refCount"]["value"])
+                    else:
+                        print(f"Error: {response_pubtator.status_code}")
+                        print(response_pubtator.text)
+
+                    if ref_count_pubchem + ref_count_pubtator == 0:
+                        ref_count = "."
+                    else:
+                        ref_count = ref_count_pubchem + ref_count_pubtator
+                    # =====================================================================
 
                     # Data preparation for GFF file output (contents tentative) ===========
                     start = int(feature.location.start) + 1  # GFF is 1-based
                     end = int(feature.location.end)
                     strand = "+" if feature.strand >= 0 else "-"
-                    gene_symbol = feature.qualifiers.get("gene", [""])[0]
-                    attributes = f"ID={ncbigene};Name={gene_symbol};protein_id={protein_id}"
+                    # gene_symbol = feature.qualifiers.get("gene", [""])[0]
+                    attributes = f"ID={ncbigene};protein_id={protein_id}"
                     output_gff_records.append({
                         "seqid": record.id,
-                        "source": "Protein",
+                        "source": "RefSeq",
                         "type": "gene",
                         "start": start,
                         "end": end,
                         "score": ref_count,
                         "strand": strand,
-                        "phase": 0,
+                        "phase": ".",
                         "attributes": attributes,
                     })
                     # =====================================================================
 
 
-                    print("------------------------------------------")
+                    # print("------------------------------------------")
 
             # TODO: Delete in the official version.
             # FOR DEVELOPMENT ===========================================================================================
-            # Only one record is processed to avoid overloading the SPARQL endpoint 
-            break
+            # Limit to 10 records for easier development checks
+            cnt+=1
+            if cnt > 10:
+                break
             # ===========================================================================================================
 
 conn.close()
+
+print("Writing results to GFF file...")
 
 # Output .gff (contents tentative) ====================================
 output_gff_path = os.path.join(working_dir, "output.gff")

@@ -50,6 +50,5 @@ WHERE {
   VALUES ?ncbigene {
     <http://identifiers.org/ncbigene:$ncbigene>
   }
-  FILTER(STRSTARTS(STR(?ncbigene), "http://identifiers.org/ncbigene:"))
 }
 GROUP BY ?ncbigene
