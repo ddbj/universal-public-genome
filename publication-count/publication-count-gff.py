@@ -6,6 +6,8 @@ import sqlite3
 import requests
 import configparser
 import shutil
+import logging
+import tempfile
 from string import Template
 from io import TextIOWrapper
 from Bio import SeqIO
@@ -18,6 +20,17 @@ config.read(config_path)
 db_file = config["config"]["db_file"]
 working_dir = config["config"]["working_dir"]
 dataset_file = f"{working_dir}/{config["config"]["ncbi_dataset_zip_file"]}"
+
+# Configure logger
+logger = logging.getLogger("error_logger")
+logger.setLevel(logging.ERROR)
+
+# Configure error log file
+if not logger.handlers:
+    file_handler = logging.FileHandler("error.log", encoding="utf-8")
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
 datasets_tool_path = shutil.which("datasets")
 if not datasets_tool_path:
@@ -83,165 +96,167 @@ print("Obtaining counts of publications that mention genes...")
 
 # Parse .gbff in ZIP file with Biopython
 with zipfile.ZipFile(dataset_file, "r") as zf:
-    with zf.open(gbff_file) as gbff_raw:
+    with zf.open(gbff_file) as gbff_raw, open("output_pubchem.gff", "w") as gff_pubchem, open("output_pubtator.gff", "w") as gff_pubtator:
         gbff_text = TextIOWrapper(gbff_raw, encoding="utf-8")
-        output_gff_records = []
-        cnt=0 
-        for record in SeqIO.parse(gbff_text, "genbank"):
-            for feature in record.features:
-                if feature.type == "CDS":
-                    # String representation of Location (e.g., join(123..456,789..999), complement(...)) etc.)
-                    location_str = str(feature.location)
 
-                    # Get protein_id (may not exist)
-                    protein_id = feature.qualifiers.get("protein_id", ["N/A"])[0]
+        # Write GFF3 version header
+        gff_pubchem.write("##gff-version 3\n")
+        gff_pubtator.write("##gff-version 3\n")
 
-                    # print(f"Location: {location_str}")
-                    # print(f"Protein ID: {protein_id}")
+        for i, record in enumerate(SeqIO.parse(gbff_text, "genbank"), start=1):
+            print(f"\rProcessing record #{i}" + " " * 30, flush=True)
+            total_features = len(record.features)
+            cds_counter = 0
+            min_start = float("inf")
+            max_end = float("-inf")
 
-                    # Changed to SQLite because it is time consuming
-                    # cmd = "zcat < gene2accession.gz | grep " + protein_id
-                    # result = subprocess.run(
-                    #     cmd,
-                    #     cwd=datasets_tool_path,
-                    #     shell=True,
-                    #     capture_output=True,
-                    #     text=True
-                    # )
+            # Write GFF body to a temporary file
+            with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as tmp_gff_pubchem, tempfile.TemporaryFile(mode="w+", encoding="utf-8") as tmp_gff_pubtator:
+                for j, feature in enumerate(record.features, start=1):
+                    print(f"\r  → feature {j}/{total_features} in record", end="", flush=True)
+                    if feature.type == "CDS":
+                        cds_counter += 1
+                        feature_id = f"{record.id}_{feature.type}_{cds_counter}"
 
-                    # Execute SQL to get ncbigene conditional on protein_id
-                    cur.execute(sql, (protein_id,))
-                    row = cur.fetchone()
-                    if row is not None:
-                        ncbigene = row["gene_id"]
-                        # print(f"NCBI Gene ID: {ncbigene}")
-                    else:
-                        # print(f"NCBI Gene ID: N/A")
-                        # print("------------------------------------------")
-                        continue                        
-                    
-                    # Retrieve data from PubChem cooccurrence via SPARQL ==================
-                    # Set parameter for SPARQL query
-                    sparql = sparql_template_pubchem.substitute(ncbigene=ncbigene)
-                    # sparql = sparql_template_pubchem.substitute(ncbigene="100125779")
+                        # String representation of Location (e.g., join(123..456,789..999), complement(...)) etc.)
+                        location_str = str(feature.location)
+                        
+                        # Get protein_id (may not exist)
+                        protein_id = feature.qualifiers.get("protein_id", ["N/A"])[0]
 
-                    # Set request parameter and header
-                    params = {
-                        "query": sparql
-                    }
-                    headers = {
-                        "Accept": "application/sparql-results+json"
-                    }
+                        start = int(feature.location.start) + 1  # GFF is 1-based
+                        end = int(feature.location.end)
+                        strand = "+" if feature.location.strand >= 0 else "-"
+                        attributes = f"ID={feature_id};protein_id={protein_id}"
 
-                    # Executed with a GET request
-                    response_pubchem = requests.get(endpoint_url_pubchem, params=params, headers=headers)
+                        # Execute SQL to get ncbigene conditional on protein_id
+                        cur.execute(sql, (protein_id,))
+                        row = cur.fetchone()
+                        if row is not None:
+                            ncbigene = row["gene_id"]
+                            attributes += f";ncbigene={ncbigene}"
+                        else:
+                            # Output to GFF file and go to next feature
+                            gff_fields = [
+                                record.id,        # seqid
+                                "Reference",      # source
+                                "gene",           # type
+                                start,
+                                end,
+                                ".",              # score
+                                strand,
+                                ".",              # phase
+                                attributes        # attributes
+                            ]
 
-                    # Display results retrieved in JSON
-                    ref_count_pubchem = 0
-                    if response_pubchem.status_code == 200:
-                        bindings = response_pubchem.json()["results"]["bindings"]
+                            tmp_gff_pubchem.write("\t".join(map(str, gff_fields)) + "\n")
+                            tmp_gff_pubtator.write("\t".join(map(str, gff_fields)) + "\n")
 
-                        # if not bindings:
-                        #     print("No SPARQL results found.")
-                        # else:
-                        if bindings:
-                            for binding in bindings:
-                                # print(f"NCBI Gene URL: {binding["ncbigene"]["value"]}")
-                                # print(f"Ref Count: {binding["ref_count"]["value"]}")
-                                ref_count_pubchem = int(binding["ref_count"]["value"])
-                    else:
-                        print(f"Error: {response_pubchem.status_code}")
-                        print(response_pubchem.text)
-                    # =====================================================================
+                            min_start = min(min_start, start)
+                            max_end = max(max_end, end)
 
-                    # Retrieve data from PubTator Central via SPARQL ======================
-                    sparql = sparql_template_pubtator.substitute(ncbigene=ncbigene)
-                    # sparql = sparql_template_pubtator.substitute(ncbigene="26131688")
+                            continue
+                        
+                        # PubChem =============================================================
+                        # Set parameter for SPARQL query
+                        sparql = sparql_template_pubchem.substitute(ncbigene=ncbigene)
+                        # sparql = sparql_template_pubchem.substitute(ncbigene="100125779")
 
-                    # Set request parameter and header
-                    params = {
-                        "query": sparql
-                    }
-                    headers = {
-                        "Accept": "application/sparql-results+json"
-                    }
+                        # Set request parameter and header
+                        params = {"query": sparql}
+                        headers = {"Accept": "application/sparql-results+json"}
 
-                    # Executed with a GET request
-                    response_pubtator = requests.get(endpoint_url_pubtator, params=params, headers=headers)
+                        # Executed with a GET request
+                        response_pubchem = requests.get(endpoint_url_pubchem, params=params, headers=headers)
 
+                        # Extract results from SPARQL response
+                        ref_count_pubchem = "0"
+                        if response_pubchem.status_code == 200:
+                            bindings = response_pubchem.json()["results"]["bindings"]
+                            if bindings:
+                                for binding in bindings:
+                                    ref_count_pubchem = binding["ref_count"]["value"]
+                        else:
+                            # In case of error, output a "." to distinguish it from 0
+                            ref_count_pubchem = "."
+                            logger.error("SPARQL request failed: status_code=%d\nresponse_text=%s",
+                                        response_pubchem.status_code, response_pubchem.text)
 
-                    # Display results retrieved in JSON
-                    ref_count_pubtator = 0
-                    if response_pubtator.status_code == 200:
-                        bindings = response_pubtator.json()["results"]["bindings"]
-                        # if not bindings:
-                        #     print("No SPARQL results found.")
-                        # else:
-                        if bindings:
-                            for binding in bindings:
-                                # print(f"NCBI Gene URL: {binding["geneId"]["value"]}")
-                                # print(f"Ref Count: {binding["refCount"]["value"]}")
-                                ref_count_pubtator = int(binding["refCount"]["value"])
-                    else:
-                        print(f"Error: {response_pubtator.status_code}")
-                        print(response_pubtator.text)
+                        gff_fields = [
+                            record.id,          # seqid
+                            "Reference",        # source
+                            "gene",             # type
+                            start,
+                            end,
+                            ref_count_pubchem,  # score
+                            strand,
+                            ".",                # phase
+                            attributes          # attributes
+                        ]
+                        tmp_gff_pubchem.write("\t".join(map(str, gff_fields)) + "\n")
+                        # =====================================================================
 
-                    if ref_count_pubchem + ref_count_pubtator == 0:
-                        ref_count = "."
-                    else:
-                        ref_count = ref_count_pubchem + ref_count_pubtator
-                    # =====================================================================
+                        # PubTator ============================================================
+                        sparql = sparql_template_pubtator.substitute(ncbigene=ncbigene)
+                        # sparql = sparql_template_pubtator.substitute(ncbigene="26131688")
 
-                    # Data preparation for GFF file output (contents tentative) ===========
-                    start = int(feature.location.start) + 1  # GFF is 1-based
-                    end = int(feature.location.end)
-                    strand = "+" if feature.strand >= 0 else "-"
-                    # gene_symbol = feature.qualifiers.get("gene", [""])[0]
-                    attributes = f"ID={ncbigene};protein_id={protein_id}"
-                    output_gff_records.append({
-                        "seqid": record.id,
-                        "source": "RefSeq",
-                        "type": "gene",
-                        "start": start,
-                        "end": end,
-                        "score": ref_count,
-                        "strand": strand,
-                        "phase": ".",
-                        "attributes": attributes,
-                    })
-                    # =====================================================================
+                        # Set request parameter and header
+                        params = {"query": sparql}
+                        headers = {"Accept": "application/sparql-results+json"}
 
+                        # Executed with a GET request
+                        response_pubtator = requests.get(endpoint_url_pubtator, params=params, headers=headers)
 
-                    # print("------------------------------------------")
+                        # Extract results from SPARQL response
+                        ref_count_pubtator = "0"
+                        if response_pubtator.status_code == 200:
+                            bindings = response_pubtator.json()["results"]["bindings"]
+                            if bindings:
+                                for binding in bindings:
+                                    ref_count_pubtator = binding["refCount"]["value"]
+                        else:
+                            # In case of error, output a "." to distinguish it from 0
+                            ref_count_pubtator = "."
+                            logger.error("SPARQL request failed: status_code=%d\nresponse_text=%s",
+                                        response_pubtator.status_code, response_pubtator.text)
 
-            # TODO: Delete in the official version.
+                        gff_fields = [
+                            record.id,          # seqid
+                            "Reference",        # source
+                            "gene",             # type
+                            start,
+                            end,
+                            ref_count_pubtator, # score
+                            strand,
+                            ".",                # phase
+                            attributes          # attributes
+                        ]
+                        tmp_gff_pubtator.write("\t".join(map(str, gff_fields)) + "\n")
+                        # =====================================================================
+
+                # Track min/max positions for sequence-region
+                min_start = min(min_start, start)
+                max_end = max(max_end, end)
+
+                # Write sequence-region header line
+                if min_start < float("inf") and max_end > float("-inf"):
+                    gff_pubchem.write(f"##sequence-region {record.id} {min_start} {max_end}\n")
+                    gff_pubtator.write(f"##sequence-region {record.id} {min_start} {max_end}\n")
+
+                # Rewind and write the content of the temporary file to the final output
+                tmp_gff_pubchem.seek(0)
+                gff_pubchem.writelines(tmp_gff_pubchem.readlines())
+                tmp_gff_pubtator.seek(0)
+                gff_pubtator.writelines(tmp_gff_pubtator.readlines())
+
             # FOR DEVELOPMENT ===========================================================================================
             # Limit to 10 records for easier development checks
-            cnt+=1
-            if cnt > 10:
-                break
+            # if i > 10:
+            #     break
             # ===========================================================================================================
 
 conn.close()
 
-print("Writing results to GFF file...")
-
-# Output .gff (contents tentative) ====================================
-output_gff_path = os.path.join(working_dir, "output.gff")
-with open(output_gff_path, "w", encoding="utf-8") as gff:
-    gff.write("##gff-version 3\n")
-    for record in output_gff_records:
-        gff.write("\t".join(map(str, [
-            record["seqid"], 
-            record["source"], 
-            record["type"], 
-            record["start"], 
-            record["end"],
-            record["score"], 
-            record["strand"], 
-            record["phase"], 
-            record["attributes"]
-        ])) + "\n")
-
-print(f"GFF file output is complete. (content is tentative) Path: {output_gff_path}")
-# =====================================================================
+print()
+print(f"Pubchem GFF file output is complete. Path: {os.path.join(working_dir, "output_pubchem.gff")}")
+print(f"Pubtator GFF file output is complete. Path: {os.path.join(working_dir, "output_pubtator.gff")}")
