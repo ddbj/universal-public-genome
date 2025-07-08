@@ -234,9 +234,9 @@ with zipfile.ZipFile(dataset_file, "r") as zf:
                         tmp_gff_pubtator.write("\t".join(map(str, gff_fields)) + "\n")
                         # =====================================================================
 
-                # Track min/max positions for sequence-region
-                min_start = min(min_start, start)
-                max_end = max(max_end, end)
+                        # Track min/max positions for sequence-region
+                        min_start = min(min_start, start)
+                        max_end = max(max_end, end)
 
                 # Write sequence-region header line
                 if min_start < float("inf") and max_end > float("-inf"):
