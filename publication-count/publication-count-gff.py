@@ -122,7 +122,6 @@ def process_gbff_and_output_gff(config, logger, pubchem_template, pubtator_templ
     Args:
         config (ConfigParser): Parsed configuration object.
         logger (logging.Logger): Logger for error messages.
-        script_dir (str): Directory where the script resides.
         pubchem_template (Template): SPARQL template for PubChem.
         pubtator_template (Template): SPARQL template for PubTator.
         accession (str): Assembly accession ID.
