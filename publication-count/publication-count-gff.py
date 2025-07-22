@@ -159,8 +159,6 @@ def process_gbff_and_output_gff(config, logger, sparql_template, accession):
                     start = int(feature.location.start) + 1
                     end = int(feature.location.end)
                     strand = "+" if feature.location.strand == 1 else "-" if feature.location.strand == -1 else "."
-                    codon_start = int(feature.qualifiers.get("codon_start", [1])[0])
-                    phase = (codon_start - 1) % 3
                     feature_id = f"{record.id}_CDS_{cds_counter}"
                     attributes = f"ID={feature_id};protein_id={protein_id}"
 
@@ -177,8 +175,10 @@ def process_gbff_and_output_gff(config, logger, sparql_template, accession):
                         logger.error(f"Failed to retrieve score for {protein_id}: {e}")
                         score = "0"
 
-                    cds_line = [record.id, "Reference", "CDS", start, end, score, strand, phase, attributes]
+                    cds_line = [record.id, "Reference", "Gene", start, end, score, strand, ".", attributes]
                     gff_pubchem.write("\t".join(map(str, cds_line)) + "\n")
+
+                print()
 
     print(f"\nGFF file output is complete. Path: {os.path.join(working_dir, output_gff_file)}")
 
