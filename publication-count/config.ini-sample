@@ -1,6 +1,4 @@
 [config]
-gz_file = /path/to/gene2accession.gz
-db_file = /path/to/gene2accession.db
 working_dir = /tmp/
 ncbi_dataset_zip_file = ncbi_dataset.zip
 

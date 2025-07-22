@@ -2,12 +2,10 @@ import os
 import argparse
 import subprocess
 import zipfile
-import sqlite3
 import requests
 import configparser
 import shutil
 import logging
-import tempfile
 from string import Template
 from io import TextIOWrapper
 from Bio import SeqIO
@@ -41,19 +39,19 @@ def setup_logger():
         logger.addHandler(file_handler)
     return logger
 
-def execute_sparql_query(endpoint_url, sparql_template, ncbigene):
+def execute_sparql_query(endpoint_url, sparql_template, protein_id):
     """
     Execute a SPARQL query by substituting the ncbigene value in the template.
 
     Args:
         endpoint_url (str): The URL of the SPARQL endpoint.
         sparql_template (Template): The SPARQL query template.
-        ncbigene (str): The NCBI Gene ID to substitute into the query.
+        protein_id (str): Protein ID to substitute into the query.
 
     Returns:
         requests.Response: The HTTP response from the SPARQL endpoint.
     """
-    sparql = sparql_template.substitute(ncbigene=ncbigene)
+    sparql = sparql_template.substitute(protein_id=protein_id)
     params = {"query": sparql}
     headers = {"Accept": "application/sparql-results+json"}
     return requests.get(endpoint_url, params=params, headers=headers)
@@ -68,11 +66,9 @@ def get_sparql_templates(script_dir):
     Returns:
         tuple: A tuple containing two Template objects for PubChem and PubTator.
     """
-    with open(os.path.join(script_dir, "publication-count-pubchem.rq"), "r", encoding="utf-8") as f:
-        pubchem_template = Template(f.read())
-    with open(os.path.join(script_dir, "publication-count-pubtator.rq"), "r", encoding="utf-8") as f:
-        pubtator_template = Template(f.read())
-    return pubchem_template, pubtator_template
+    with open(os.path.join(script_dir, "publication-count.rq"), "r", encoding="utf-8") as f:
+        sparql_template = Template(f.read())
+    return sparql_template
 
 def download_genome_zip(datasets_tool_path, accession, working_dir):
     """
@@ -89,21 +85,21 @@ def download_genome_zip(datasets_tool_path, accession, working_dir):
     cmd = [datasets_tool_path, "download", "genome", "accession", accession, "--include", "gbff"]
     subprocess.run(cmd, cwd=working_dir, check=True)
 
-def get_publication_count(endpoint_url, sparql_template, ncbigene, logger, field_name):
+def get_publication_count(endpoint_url, sparql_template, protein_id, logger, field_name):
     """
     Query SPARQL endpoint and extract publication count for a given gene.
 
     Args:
         endpoint_url (str): URL of the SPARQL endpoint.
         sparql_template (Template): SPARQL query template.
-        ncbigene (str): Gene ID to query.
+        protein_id (str): Protein ID to query.
         logger (logging.Logger): Logger for error messages.
         field_name (str): Field name in the SPARQL response JSON.
 
     Returns:
         str: Count value or '.' if the query fails.
     """
-    response = execute_sparql_query(endpoint_url, sparql_template, ncbigene)
+    response = execute_sparql_query(endpoint_url, sparql_template, protein_id)
     if response.status_code == 200:
         bindings = response.json()["results"]["bindings"]
         if bindings:
@@ -115,94 +111,76 @@ def get_publication_count(endpoint_url, sparql_template, ncbigene, logger, field
                      response.status_code, response.text)
         return "."
 
-def process_gbff_and_output_gff(config, logger, pubchem_template, pubtator_template, accession):
+def process_gbff_and_output_gff(config, logger, sparql_template, accession):
     """
     Parse .gbff file and create GFF files with publication counts per gene.
 
     Args:
         config (ConfigParser): Parsed configuration object.
         logger (logging.Logger): Logger for error messages.
-        pubchem_template (Template): SPARQL template for PubChem.
-        pubtator_template (Template): SPARQL template for PubTator.
+        sparql_template (Template): SPARQL template for PubChem.
         accession (str): Assembly accession ID.
     """
-    db_file = config["config"]["db_file"]
-    working_dir = config["config"]["working_dir"]
-    dataset_file = f"{working_dir}/{config['config']['ncbi_dataset_zip_file']}"
+    cfg = config["config"]
+    working_dir = cfg["working_dir"]
+    dataset_file = f"{working_dir}/{cfg['ncbi_dataset_zip_file']}"
     gbff_file = f"ncbi_dataset/data/{accession}/genomic.gbff"
+    output_gff_file = f"{accession}_output.gff"
 
-    conn = sqlite3.connect(db_file)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-    sql = "SELECT gene_id FROM accession WHERE protein_accession = ?"
-
-    # Parse .gbff in ZIP file with Biopython
     with zipfile.ZipFile(dataset_file, "r") as zf:
-        with zf.open(gbff_file) as gbff_raw, \
-             open("output_pubchem.gff", "w") as gff_pubchem, \
-             open("output_pubtator.gff", "w") as gff_pubtator:
-
+        with zf.open(gbff_file) as gbff_raw, open(f"{working_dir}/{output_gff_file}", "w") as gff_pubchem:
             gbff_text = TextIOWrapper(gbff_raw, encoding="utf-8")
 
-            # Write GFF3 version header
             gff_pubchem.write("##gff-version 3\n")
-            gff_pubtator.write("##gff-version 3\n")
 
             for i, record in enumerate(SeqIO.parse(gbff_text, "genbank"), start=1):
                 print(f"\rProcessing record #{i}" + " " * 30, flush=True)
-                min_start, max_end = float("inf"), float("-inf")
 
-                # Write GFF body to a temporary file
-                with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as tmp_pubchem, \
-                     tempfile.TemporaryFile(mode="w+", encoding="utf-8") as tmp_pubtator:
+                cds_counter = 0
 
-                    cds_counter = 0
-                    for j, feature in enumerate(record.features, start=1):
-                        print(f"\r  → feature {j}/{len(record.features)}", end="", flush=True)
-                        if feature.type != "CDS":
-                            continue
+                for j, feature in enumerate(record.features, start=1):
+                    print(f"\r  → feature {j}/{len(record.features)}", end="", flush=True)
 
-                        cds_counter += 1
+                    if feature.type == "source":
+                        start = int(feature.location.start) + 1
+                        end = int(feature.location.end)
+                        gff_pubchem.write(f"##sequence-region {record.id} {start} {end}\n")
+                        feature_id = f"{record.id}_region"
+                        attributes = f"ID={feature_id}"
+                        region_line = [record.id, "Reference", "region", start, end, ".", "+", ".", attributes]
+                        gff_pubchem.write("\t".join(map(str, region_line)) + "\n")
+                        continue
 
-                        # Get protein_id (may not exist)
-                        protein_id = feature.qualifiers.get("protein_id", ["N/A"])[0]
-                        start, end = int(feature.location.start) + 1, int(feature.location.end)
-                        strand = "+" if feature.location.strand >= 0 else "-"
-                        feature_id = f"{record.id}_{feature.type}_{cds_counter}"
-                        attributes = f"ID={feature_id};protein_id={protein_id}"
+                    if feature.type != "CDS":
+                        continue
 
-                        # Execute SQL to get ncbigene conditional on protein_id
-                        cur.execute(sql, (protein_id,))
-                        row = cur.fetchone()
-                        if row:
-                            ncbigene = row["gene_id"]
-                            attributes += f";ncbigene={ncbigene}"
-                            # SPARQL to PubChem
-                            score_pubchem = get_publication_count("https://rdfportal.org/pubchem/sparql", pubchem_template, ncbigene, logger, "ref_count")
-                            # SPARQL to PubTator
-                            score_pubtator = get_publication_count("https://rdfportal.org/ncbi/sparql", pubtator_template, ncbigene, logger, "refCount")
-                        else:
-                            score_pubchem = score_pubtator = "."
+                    cds_counter += 1
+                    protein_id = feature.qualifiers.get("protein_id", ["N/A"])[0]
+                    start = int(feature.location.start) + 1
+                    end = int(feature.location.end)
+                    strand = "+" if feature.location.strand == 1 else "-" if feature.location.strand == -1 else "."
+                    codon_start = int(feature.qualifiers.get("codon_start", [1])[0])
+                    phase = (codon_start - 1) % 3
+                    feature_id = f"{record.id}_CDS_{cds_counter}"
+                    attributes = f"ID={feature_id};protein_id={protein_id}"
 
-                        # Output to GFF files
-                        gff_line = [record.id, "Reference", "gene", start, end, score_pubchem, strand, ".", attributes]
-                        tmp_pubchem.write("\t".join(map(str, gff_line)) + "\n")
-                        gff_line[5] = score_pubtator
-                        tmp_pubtator.write("\t".join(map(str, gff_line)) + "\n")
+                    try:
+                        score = get_publication_count(
+                            "https://rdfportal.org/sib/sparql",
+                            sparql_template,
+                            protein_id,
+                            logger,
+                            "ref_count"
+                        )
+                        score = score if score is not None else "0"
+                    except Exception as e:
+                        logger.error(f"Failed to retrieve score for {protein_id}: {e}")
+                        score = "0"
 
-                        min_start = min(min_start, start)
-                        max_end = max(max_end, end)
+                    cds_line = [record.id, "Reference", "CDS", start, end, score, strand, phase, attributes]
+                    gff_pubchem.write("\t".join(map(str, cds_line)) + "\n")
 
-                    if min_start < float("inf") and max_end > float("-inf"):
-                        gff_pubchem.write(f"##sequence-region {record.id} {min_start} {max_end}\n")
-                        gff_pubtator.write(f"##sequence-region {record.id} {min_start} {max_end}\n")
-
-                    tmp_pubchem.seek(0)
-                    gff_pubchem.writelines(tmp_pubchem.readlines())
-                    tmp_pubtator.seek(0)
-                    gff_pubtator.writelines(tmp_pubtator.readlines())
-
-    conn.close()
+    print(f"\nGFF file output is complete. Path: {os.path.join(working_dir, output_gff_file)}")
 
 def main():
     """
@@ -212,23 +190,22 @@ def main():
     config, script_dir = load_config()
     logger = setup_logger()
     datasets_tool_path = shutil.which("datasets") or config["config"]["datasets_tool_path"]
+    working_dir = config["config"]["working_dir"]
 
     # Configure the parser to receive Assembly Accession input
     parser = argparse.ArgumentParser(description="Create literature frequency information for each genome")
     parser.add_argument("-i", "--input", dest="assembly_accession", help="Assembly Accession", required=True)
     args = parser.parse_args()
+    accession = args.assembly_accession
 
     # Download ncbi_dataset.zip
-    download_genome_zip(datasets_tool_path, args.assembly_accession, config["config"]["working_dir"])
+    download_genome_zip(datasets_tool_path, accession, working_dir)
 
     # Load SPARQL templates
-    pubchem_template, pubtator_template = get_sparql_templates(script_dir)
+    sparql_template= get_sparql_templates(script_dir)
 
     # Process gbff and output GFF
-    process_gbff_and_output_gff(config, logger, pubchem_template, pubtator_template, args.assembly_accession)
-
-    print("\nPubchem GFF file output complete.")
-    print("Pubtator GFF file output complete.")
+    process_gbff_and_output_gff(config, logger, sparql_template, accession)
 
 if __name__ == "__main__":
     main()

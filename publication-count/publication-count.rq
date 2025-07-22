@@ -1,0 +1,18 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?ecds (count(?ref) as ?ref_count)
+WHERE {
+  VALUES ?ecds { <http://purl.uniprot.org/embl-cds/$protein_id> }
+  ?protein rdfs:seeAlso ?ecds .
+  ?ecds a <http://purl.uniprot.org/core/Nucleotide_Resource> .
+  BIND (URI(CONCAT("http://rdf.ncbi.nlm.nih.gov/pubchem/protein/ACC", STRAFTER(str(?protein), "/uniprot/"))) AS ?uniprot_id_in_pubchem)
+  SERVICE <https://rdfportal.org/pubchem/sparql> {
+    ?uniprot_id_in_pubchem <http://purl.org/spar/cito/isDiscussedBy> [
+         a <http://rdf.ncbi.nlm.nih.gov/pubchem/vocabulary#Reference> ;
+         <http://purl.org/dc/terms/identifier> ?ref
+       ] .
+    FILTER (STRSTARTS(str(?ref), "https://pubmed."))
+  }
+}
+GROUP BY ?ecds
