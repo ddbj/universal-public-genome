@@ -58,3 +58,10 @@ python publication-count-gff.py -i GCF_000968255.1
 
 
 ### 5. JBrowseTracに表示するための以下のようなGFFを出力する
+```
+```
+### 6. Jbrowseをインストールして、fastaを投入したあと、GFFを利用してtracに追加する
+* https://jbrowse.org/jb2/download/ 「Jbrowse2」のインストール」
+    * docker/podman版ははまりどころが多いので、npmで
+    * （参考）https://chatgpt.com/share/68b65aab-18f0-8002-b916-eab353f1209d
+
