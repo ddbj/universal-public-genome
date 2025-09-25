@@ -85,7 +85,7 @@ $ datasets download genome accession GCA_000012525.1 --include genome
 ### ３．.fai ファイルを作成
 
 ```bash
-$ samtools faidx ../GCA_000012525.1_ASM1252v1_genomic.fna
+$ samtools faidx path/to/GCA_000012525.1_ASM1252v1_genomic.fna
 ```
 
 ### ４．JBrowseの作業ディレクトリ作成 〜 ローカルサーバー起動
@@ -101,19 +101,19 @@ $ npx serve .
 ### ５．アセンブリの追加
 
 ```bash
-$ jbrowse add-assembly ../GCA_000012525.1_ASM1252v1_genomic.fna --load copy
+$ jbrowse add-assembly path/to/GCA_000012525.1_ASM1252v1_genomic.fna --load copy
 ```
 
 注意: .fai ファイルが存在しない場合は以下のようなエラーが出ます。
 ```bash
-Error: Could not resolve to a file or a URL: "./GCA_000012525.1_ASM1252v1_genomic.fna.fai"
+Error: Could not resolve to a file or a URL: "path/to/GCA_000012525.1_ASM1252v1_genomic.fna.fai"
 ```
 
 
 ### ６．トラックの追加（1.で作成したGFFを利用します）
 
 ```bash
-$ jbrowse add-track ../GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load copy
+$ jbrowse add-track path/to/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load copy
 ```
 
 ### ７．ブラウザからアクセス
