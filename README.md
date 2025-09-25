@@ -76,13 +76,13 @@ $ python publication-count-gff.py -i GCA_000012525.1
   4. 関連文献数をscoreとして含むGFFファイルを出力する
 
 
-### ２．FASTA のダウンロード:
+### ２．FASTA のダウンロード
 
 ```bash
 $ datasets download genome accession GCA_000012525.1 --include genome
 ```
 
-### ３．.fai ファイルを作成
+### ３．.fai ファイルの作成
 
 ```bash
 $ samtools faidx path/to/GCA_000012525.1_ASM1252v1_genomic.fna
