@@ -1,5 +1,5 @@
 [config]
-working_dir = /tmp/
+working_dir = ./
 ncbi_dataset_zip_file = ncbi_dataset.zip
 
 # No configuration is needed if 'datasets' is already in your system PATH.
