@@ -25,7 +25,7 @@ $ mv datasets ~/.local/bin/
 $ which datasets
 ```
 
-※ 配置した場所が PATH に含まれていない場合は、以下を ~/.bashrc などに追加してください。（~/.local/binの場合の例）
+※ 配置した場所が PATH に含まれていない場合は、以下を `~/.bashrc` などに追加してください。（`~/.local/bin` の場合の例）
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
