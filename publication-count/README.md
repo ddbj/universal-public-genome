@@ -16,7 +16,7 @@
 インストール方法や詳細については公式ページを参照してください。
 - https://www.ncbi.nlm.nih.gov/datasets/docs/v2/command-line-tools/download-and-install/
 
-ダウンロードしたdatasetsツールのパスを通しておいてください。（例：datasets コマンドをどこからでも実行できるようにするため）
+ダウンロードしたdatasetsツールのパスを通しておいてください。（datasets コマンドをどこからでも実行できるようにするため）
 ```bash
 # 例：~/.local/bin に配置する場合
 $ mv datasets ~/.local/bin/
