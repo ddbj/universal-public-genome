@@ -160,6 +160,7 @@ $ jbrowse add-assembly assemblies/GCA_000012525.1_ASM1252v1_genomic.fna --load i
 
 ### ８．トラックの追加（1）
 - 3で作成したGFFを利用します
+
 ```bash
 #$ jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace
 $ jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace --name "Gene annotation" --trackId GCA_000012525.1_gff
