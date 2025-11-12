@@ -2,7 +2,7 @@
 
 本手順では、指定したアセンブリアクセッション（Assembly accession）に対応する文献頻度情報を取得し、GFF形式で出力してJBrowseで可視化するまでの流れを示します。
 
-### 動作確認済環境
+## 動作確認済環境
 
 | OS | Python | Node.js | JBrowse CLI | Samtools |
 |:--|:--|:--|:--|:--|
@@ -72,6 +72,11 @@ $ apt install samtools
   $ pip install biopython
   $ pip install requests
   ```
+### bedGraphToBigWigコマンドのインストール
+- バーグラフトラックで利用するBigWig変換時に必要
+```
+mamba install -c bioconda ucsc-bedgraphtobigwig
+```
 
 ## 実行手順
 
@@ -153,16 +158,55 @@ $ jbrowse add-assembly assemblies/GCA_000012525.1_ASM1252v1_genomic.fna --load i
 ```
 
 
-### ８．トラックの追加（３.で作成したGFFを利用します）
+### ８．トラックの追加（1）
+- 3. で作成したGFFを利用します
 ```bash
-$ jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace
+#$ jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace
+$ jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace --name "Gene annotation" --trackId GCA_000012525.1_gff
 # 成功すると "Added track with name "GCA_000012525.1_output" and trackId "GCA_000012525.1_output" to ./config.json" のようなメッセージが表示されます
 ```
 
-### ９．ローカルサーバーの起動
+### 9. トラックの追加（2）
+- 5. ３.で作成したfaidx および 3. で作成したGFFを利用して BigWigを作成します。
+
+```
+#faidx GCA_000012525.1_ASM1252v1_genomic.fna
+cut -f1,2 assemblies/GCA_000012525.1_ASM1252v1_genomic.fna.fai > GCA_000012525.1.chrom.sizes
+
+awk -F'\t' 'BEGIN{OFS="\t"} $6!="." && $3=="gene" {print $1, $4-1, $5, $6}' \
+  input.gff3 \
+  | sort -k1,1 -k2,2n > GCA_000012525.1_output.bedGraph
+
+
+LC_ALL=C sort -k1,1 -k2,2n GCA_000012525.1_output.bedGraph \
+| awk -F'\t' 'BEGIN{OFS="\t"}
+  /^#/ {next}                          # コメント行は除外
+  {
+    chr=$1; s=$2+0; e=$3+0; v=$4
+    # 染色体が変わったらリセット
+    if (chr!=prev_chr) { prev_chr=chr; prev_end=0 }
+    # 直前の出力区間(prev_end)と重なる先頭を切り上げ
+    if (s < prev_end) s = prev_end
+    # 長さが残っていれば出力し、prev_end を更新
+    if (s < e) { print chr, s, e, v; prev_end = e }
+    # もし s>=e になったら完全に食い込んでいるので捨てる（出力しない）
+  }' > GCA_000012525.1_output.noOverlap.bedGraph
+
+bedGraphToBigWig GCA_000012525.1_output.noOverlap.bedGraph   GCA_000012525.1.chrom.sizes   GCA_000012525.1_output.bw
+```
+- Trackに追加します。
+
+```
+jbrowse add-track tracks/GCA_000012525.1_output.bw  --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace --name "GFF score (bar)"  --trackId GCA_000012525.1_bw
+```
+
+**TODO: コマンド実行ディレクトリを固定して動作確認、一時ファイルの削除、assemblyNames、track name/Idの修正、コマンド実行省力化**
+
+### 10．ローカルサーバーの起動
 
 ```bash
-$ npx serve .
+$ npx serve . -l tcp://0.0.0.0:3333 --no-clipboard
+#$ npx serve .
 ```
 - 初回実行時は、以下のように serve パッケージのインストール確認が表示される場合があります。その場合は y を入力して続行してください。
   ```bash
@@ -176,7 +220,7 @@ $ npx serve .
 - npx serve . でローカルサーバーを起動した際に表示されたURLにアクセスすることで表示できます。
   以下は例です。
   ```
-  http://localhost:3000
+  http://localhost:3333
   ```
 
 - JBrowse の詳細な操作方法については、公式ドキュメントを参照してください。  
