@@ -159,7 +159,8 @@ $ jbrowse add-assembly assemblies/GCA_000012525.1_ASM1252v1_genomic.fna --load i
 
 
 ### ８．トラックの追加（1）
-- 3. で作成したGFFを利用します
+- 3で作成したGFFを利用します
+
 ```bash
 #$ jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace
 $ jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace --name "Gene annotation" --trackId GCA_000012525.1_gff
@@ -167,7 +168,7 @@ $ jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012
 ```
 
 ### 9. トラックの追加（2）
-- 5. ３.で作成したfaidx および 3. で作成したGFFを利用して BigWigを作成します。
+- 5で作成したfaidx および 3で作成したGFFを利用して BigWigを作成します。
 
 ```
 #faidx GCA_000012525.1_ASM1252v1_genomic.fna
