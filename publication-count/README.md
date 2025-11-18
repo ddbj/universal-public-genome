@@ -19,10 +19,10 @@
 ダウンロードしたdatasetsツールのパスを通しておいてください。（datasets コマンドをどこからでも実行できるようにするため）
 ```bash
 # 例：~/.local/bin に配置する場合
-$ mv datasets ~/.local/bin/
+mv datasets ~/.local/bin/
 
 # PATH が通っているか確認
-$ which datasets
+which datasets
 ```
 
 ※ 配置した場所が PATH に含まれていない場合は、以下を `~/.bashrc` などに追加してください。（`~/.local/bin` の場合の例）
@@ -38,8 +38,8 @@ Nodejsのインストール方法や詳細については公式ページを参�
 
 Nodejsをインストールし、npmコマンドが使える状態になったら、以下のようにjbrowseをインストールできます。
 ```bash
-$ npm install -g @jbrowse/cli
-$ jbrowse --version
+npm install -g @jbrowse/cli
+jbrowse --version
 ```
 
 
@@ -54,7 +54,7 @@ FASTA のインデックス作成に利用します。
 
 例として、Ubuntu22.04 では apt を用いて以下のようにインストールできます。
 ```bash
-$ apt install samtools
+apt install samtools
 ```
 
 
@@ -69,8 +69,8 @@ $ apt install samtools
     
 - 以下のパッケージをインストールしてください。
   ```
-  $ pip install biopython
-  $ pip install requests
+  pip install biopython
+  pip install requests
   ```
 ### bedGraphToBigWigコマンドのインストール
 - バーグラフトラックで利用するBigWig変換時に必要
@@ -78,21 +78,16 @@ $ apt install samtools
 mamba install -c bioconda ucsc-bedgraphtobigwig
 ```
 
-## 実行手順
-
-- 本手順はローカル環境に対する作業例ですが、公開版のJBrowseを使用する場合は適宜読み替えてください。
-- 本手順では、アセンブリアクセッション（Assembly accession）「GCA_000012525.1」を例とします。
-
-### １．ソースコードのダウンロード、ディレクトリ移動
+### ソースコードのダウンロード、ディレクトリ移動
 ```
-$ git clone https://github.com/ddbj/universal-public-genome.git -b develop
-$ cd universal-public-genome/publication-count
+git clone https://github.com/ddbj/universal-public-genome.git -b develop
+cd universal-public-genome/publication-count
 ```
 
-### ２．文献頻度情報作成スクリプトの設定ファイルの準備      
+### 文献頻度情報作成スクリプトの設定ファイルの準備      
 - config.iniを作成
   ```
-  $ cp config.ini-sample config.ini
+  cp config.ini-sample config.ini
   ```
 
 - config.iniの説明（基本的には変更不要。NCBI datasets command-line toolsの配置場所にパスが通っていない場合のみ、datasets_tool_pathを設定してください）
@@ -103,9 +98,125 @@ $ cd universal-public-genome/publication-count
     |datasets_tool_path|NCBI datasets command-line toolsのパス（パスを通してある場合は設定不要）|
 
 
-### ３．文献頻度情報を含むGFFの作成
+
+## JBrowseに登録するデータの準備、プロジェクトの作成
+
+
+<h3 id="prepare-jbrowse-script">
+A. スクリプトによる自動実行の場合（通常はこちら）
+</h3>
+
+- 通常はこちらの方法を使用します。
+- スペース区切りで複数のアセンブリアクセッションを指定できます。
+- すでに JBrowse に登録されているアセンブリは自動的にスキップされます。
+- 本手順では、アセンブリアクセッション（Assembly accession）「GCF_000840245.1」「GCF_000819615.1」「GCF_000861465.1」を例とします。
+
+```bash
+./prepare_jbrowse.sh GCF_000840245.1 GCF_000819615.1 GCF_000861465.1
 ```
-$ python publication-count-gff.py -i GCA_000012525.1
+- このスクリプト内で以下の処理が行われます。
+  1. 文献頻度入り GFF の生成
+  2. FASTA のダウンロード、解凍
+  3. .fai ファイルの作成
+  4. JBrowseプロジェクトの準備（$HOME/jbrowse/jbrowse2 への配置）
+  5. アセンブリの追加
+  6. GFFトラックの追加
+  7. BigWigの作成とトラック追加
+  8. 一時ファイルの削除（1,2,7で生成、ダウンロードした中間ファイル等）
+
+  <details>
+  <summary>（参考）実行結果の例（正常終了）</summary>
+  
+  ```text
+  ============================================
+  Summary
+  ============================================
+  Success:
+    - GCF_000840245.1
+    - GCF_000819615.1
+    - GCF_000861465.1
+
+  Skipped:
+    (none)
+
+  Failed:
+    (none)
+  ============================================
+  ```
+  </details>
+<p></p>
+
+- 詳細表示を行いたい場合は--verboseを指定してください。  
+処理中の標準出力／標準エラー出力を画面およびログに出力します。
+  ```bash
+  ./prepare_jbrowse.sh --verbose GCF_000840245.1 GCF_000819615.1 GCF_000861465.1
+  ```
+
+- （参考）本手順では、ソースコードが配置されているディレクトリ（Git clone 先）と、JBrowse プロジェクトを作成するディレクトリは別の場所になります。  
+以下に、上記の prepare_jbrowse.sh 実行後に生成される各ディレクトリの構造を示します。
+
+  <details>
+  <summary>実行後のディレクトリ構造（参考）</summary>
+
+    - **ソースコード側（universal-public-genome/publication-count）**  
+      … prepare_jbrowse.sh / publication-count-gff.py / ログ などが置かれる
+
+      ```text
+      universal-public-genome/
+      └ publication-count/
+          ├ prepare_jbrowse.sh
+          ├ prepare_jbrowse_single.sh
+          ├ prepare_jbrowse_bulk.sh
+          ├ publication-count-gff.py
+          ├ config.ini
+          └ logs/
+              ├ publication-count-gff/
+              │   └ error.log
+              └ prepare_jbrowse/
+                  ├ summary.log
+                  ├ GCF_000840245.1.log
+                  ├ GCF_000819615.1.log
+                  └ GCF_000861465.1.log
+      ```
+
+    - **JBrowse プロジェクト側（$HOME/jbrowse/jbrowse2）**  
+      … assemblies, tracks, config.json が配置される
+
+      ```text
+      $HOME/jbrowse/jbrowse2/
+      ├ assemblies/
+      │   ├ GCF_000819615.1_ViralProj14015_genomic.fna
+      │   ├ GCF_000819615.1_ViralProj14015_genomic.fna.fai
+      │   ├ GCF_000840245.1_ViralProj14204_genomic.fna
+      │   ├ GCF_000840245.1_ViralProj14204_genomic.fna.fai
+      │   ├ GCF_000861465.1_ViralProj15349_genomic.fna
+      │   └ GCF_000861465.1_ViralProj15349_genomic.fna.fai
+      ├ tracks/
+      │   ├ GCF_000819615.1_output.bw
+      │   ├ GCF_000819615.1_output.gff
+      │   ├ GCF_000840245.1_output.bw
+      │   ├ GCF_000840245.1_output.gff
+      │   ├ GCF_000861465.1_output.bw
+      │   └ GCF_000861465.1_output.gff
+      └ config.json
+      ```
+  </details>
+
+<p></p>
+
+<details>
+<summary><span style="font-size:1.17em; font-weight:bold;">
+B. 手動実行の場合（通常は使用しません）
+</span></summary>
+
+- 通常は、先述した [スクリプトによる自動実行の場合](#prepare-jbrowse-script) で対応できるため、本手順は不要です。  
+トラブル対応・動作理解・検証目的で手動で実行したい場合は以下を参照してください。
+- 本手順はローカル環境に対する作業例ですが、公開版のJBrowseを使用する場合は適宜読み替えてください。
+- 本手順では、アセンブリアクセッション（Assembly accession）「GCA_000012525.1」を例とします。
+
+#### B-1．文献頻度情報を含むGFFの作成
+```bash
+python publication-count-gff.py -i GCA_000012525.1
 ```
 
 - このスクリプト内で以下の処理が行われます。
@@ -115,67 +226,66 @@ $ python publication-count-gff.py -i GCA_000012525.1
   4. 関連文献数をscoreとして含むGFFファイルを出力する
 
 
-### ４．FASTA のダウンロード、解凍（NCBI datasets command-line toolsを使用）
+#### B-2．FASTA のダウンロード、解凍（NCBI datasets command-line toolsを使用）
 
 ```bash
-$ datasets download genome accession GCA_000012525.1 --include genome
-$ unzip ncbi_dataset.zip -d ncbi_dataset/
+datasets download genome accession GCA_000012525.1 --include genome
+unzip ncbi_dataset.zip -d ncbi_dataset/
 ```
 - datasetsの実行ファイルを配置した場所にパスが通っていない場合は、フルパスで指定してください。
 
-### ５．.fai ファイルの作成
+#### B-3．.fai ファイルの作成
 
 ```bash
-$ samtools faidx ncbi_dataset/ncbi_dataset/data/GCA_000012525.1/GCA_000012525.1_ASM1252v1_genomic.fna
+samtools faidx ncbi_dataset/ncbi_dataset/data/GCA_000012525.1/GCA_000012525.1_ASM1252v1_genomic.fna
 ```
 
-### ６．JBrowseのプロジェクト作成、アセンブリ・トラック追加に必要なファイルの移動、ディレクトリ移動
+#### B-4．JBrowseのプロジェクト作成、アセンブリ・トラック追加に必要なファイルの移動、ディレクトリ移動
 
 ```bash
 # JBrowse用のディレクトリを作成し、その中にプロジェクト作成
 # この例では $HOME/jbrowse ディレクトリ内に、jbrowse2という名称でプロジェクトを作成します
-$ mkdir -p $HOME/jbrowse
-$ jbrowse create $HOME/jbrowse/jbrowse2
+mkdir -p $HOME/jbrowse
+jbrowse create $HOME/jbrowse/jbrowse2
 
 # アセンブリ・トラック追加用ファイルの配置場所を作成
-$ mkdir -p $HOME/jbrowse/jbrowse2/{assemblies,tracks}
+mkdir -p $HOME/jbrowse/jbrowse2/{assemblies,tracks}
 
 # アセンブリ追加用ファイルを移動
-$ mv ncbi_dataset/ncbi_dataset/data/GCA_000012525.1/GCA_000012525.1_ASM1252v1_genomic.fna ncbi_dataset/ncbi_dataset/data/GCA_000012525.1/GCA_000012525.1_ASM1252v1_genomic.fna.fai $HOME/jbrowse/jbrowse2/assemblies/
+mv ncbi_dataset/ncbi_dataset/data/GCA_000012525.1/GCA_000012525.1_ASM1252v1_genomic.fna ncbi_dataset/ncbi_dataset/data/GCA_000012525.1/GCA_000012525.1_ASM1252v1_genomic.fna.fai $HOME/jbrowse/jbrowse2/assemblies/
 
-# トラック追加用ファイルを移動（３.で作成したGFF）
-$ mv GCA_000012525.1_output.gff $HOME/jbrowse/jbrowse2/tracks/
+# トラック追加用ファイルを移動（1で作成したGFF）
+mv GCA_000012525.1_output.gff $HOME/jbrowse/jbrowse2/tracks/
 
 # ディレクトリを移動
-$ cd $HOME/jbrowse/jbrowse2
+cd $HOME/jbrowse/jbrowse2
 ```
 
 
-### ７．アセンブリの追加
+#### B-5．アセンブリの追加
 ```bash
-$ jbrowse add-assembly assemblies/GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace
+jbrowse add-assembly assemblies/GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace
 # 成功すると "Added assembly "GCA_000012525.1_ASM1252v1_genomic.fna" to config.json" のようなメッセージが表示されます
 ```
 
 
-### ８．トラックの追加（1）
-- 3で作成したGFFを利用します
+#### B-6．トラックの追加（1）
+- 1で作成したGFFを利用します
 
 ```bash
-#$ jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace
-$ jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace --name "Gene annotation" --trackId GCA_000012525.1_gff
+jbrowse add-track tracks/GCA_000012525.1_output.gff --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace --name "Gene annotation" --trackId GCA_000012525.1_gff
 # 成功すると "Added track with name "GCA_000012525.1_output" and trackId "GCA_000012525.1_output" to ./config.json" のようなメッセージが表示されます
 ```
 
-### 9. トラックの追加（2）
-- 5で作成したfaidx および 3で作成したGFFを利用して BigWigを作成します。
+#### B-7. トラックの追加（2）
+- 3で作成したfaidx および 1で作成したGFFを利用して BigWigを作成します。
 
-```
+```bash
 #faidx GCA_000012525.1_ASM1252v1_genomic.fna
 cut -f1,2 assemblies/GCA_000012525.1_ASM1252v1_genomic.fna.fai > GCA_000012525.1.chrom.sizes
 
-awk -F'\t' 'BEGIN{OFS="\t"} $6!="." && $3=="gene" {print $1, $4-1, $5, $6}' \
-  input.gff3 \
+awk -F'\t' 'BEGIN{OFS="\t"} tolower($3)=="gene" && $6!="." {print $1, $4-1, $5, $6}' \
+  tracks/GCA_000012525.1_output.gff \
   | sort -k1,1 -k2,2n > GCA_000012525.1_output.bedGraph
 
 
@@ -193,21 +303,25 @@ LC_ALL=C sort -k1,1 -k2,2n GCA_000012525.1_output.bedGraph \
     # もし s>=e になったら完全に食い込んでいるので捨てる（出力しない）
   }' > GCA_000012525.1_output.noOverlap.bedGraph
 
-bedGraphToBigWig GCA_000012525.1_output.noOverlap.bedGraph   GCA_000012525.1.chrom.sizes   GCA_000012525.1_output.bw
+bedGraphToBigWig GCA_000012525.1_output.noOverlap.bedGraph   GCA_000012525.1.chrom.sizes   tracks/GCA_000012525.1_output.bw
+
+rm GCA_000012525.1.chrom.sizes GCA_000012525.1_output.bedGraph GCA_000012525.1_output.noOverlap.bedGraph
 ```
 - Trackに追加します。
 
-```
-jbrowse add-track tracks/GCA_000012525.1_output.bw  --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace --name "GFF score (bar)"  --trackId GCA_000012525.1_bw
+```bash
+jbrowse add-track tracks/GCA_000012525.1_output.bw  --assemblyNames GCA_000012525.1_ASM1252v1_genomic.fna --load inPlace --name "Publication count"  --trackId GCA_000012525.1_bw
 ```
 
-**TODO: コマンド実行ディレクトリを固定して動作確認、一時ファイルの削除、assemblyNames、track name/Idの修正、コマンド実行省力化**
+</details>
 
-### 10．ローカルサーバーの起動
+## JBrowseの起動
+
+### 1.ローカルサーバーの起動
 
 ```bash
-$ npx serve . -l tcp://0.0.0.0:3333 --no-clipboard
-#$ npx serve .
+cd $HOME/jbrowse/jbrowse2
+npx serve . -l tcp://0.0.0.0:3333 --no-clipboard
 ```
 - 初回実行時は、以下のように serve パッケージのインストール確認が表示される場合があります。その場合は y を入力して続行してください。
   ```bash
@@ -216,7 +330,7 @@ $ npx serve . -l tcp://0.0.0.0:3333 --no-clipboard
   Ok to proceed? (y)
   ```
 
-### 10．ブラウザからアクセス
+### 2．ブラウザからアクセス
 
 - npx serve . でローカルサーバーを起動した際に表示されたURLにアクセスすることで表示できます。
   以下は例です。
