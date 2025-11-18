@@ -25,15 +25,20 @@ def load_config():
 
 def setup_logger():
     """
-    Set up a logger for error logging to 'error.log'.
-
+    Set up a logger for error logging to 'logs/publication-count-gff/error.log'.
     Returns:
         logging.Logger: Configured logger instance.
     """
+
+    log_dir = "logs/publication-count-gff"
+    log_file = os.path.join(log_dir, "error.log")
+
+    os.makedirs(log_dir, exist_ok=True)
+
     logger = logging.getLogger("error_logger")
     logger.setLevel(logging.ERROR)
     if not logger.handlers:
-        file_handler = logging.FileHandler("error.log", encoding="utf-8")
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
