@@ -109,10 +109,10 @@ A. スクリプトによる自動実行の場合（通常はこちら）
 - 通常はこちらの方法を使用します。
 - スペース区切りで複数のアセンブリアクセッションを指定できます。
 - すでに JBrowse に登録されているアセンブリは自動的にスキップされます。
-- 本手順では、アセンブリアクセッション（Assembly accession）「GCF_000840245.1」「GCF_000819615.1」「GCF_000861465.1」を例とします。
+- 本手順では、アセンブリアクセッション（Assembly accession） 「GCA_000012525.1」「GCA_000005845.2」「GCF_000819615.1」 を例とします。
 
 ```bash
-./prepare_jbrowse.sh GCF_000840245.1 GCF_000819615.1 GCF_000861465.1
+./prepare_jbrowse.sh GCA_000012525.1 GCA_000005845.2 GCA_000006745.1
 ```
 - このスクリプト内で以下の処理が行われます。
   1. 文献頻度入り GFF の生成
@@ -132,9 +132,9 @@ A. スクリプトによる自動実行の場合（通常はこちら）
   Summary
   ============================================
   Success:
-    - GCF_000840245.1
-    - GCF_000819615.1
-    - GCF_000861465.1
+    - GCA_000012525.1
+    - GCA_000005845.2
+    - GCA_000006745.1
 
   Skipped:
     (none)
@@ -146,10 +146,10 @@ A. スクリプトによる自動実行の場合（通常はこちら）
   </details>
 <p></p>
 
-- 詳細表示を行いたい場合は--verboseを指定してください。  
-処理中の標準出力／標準エラー出力を画面およびログに出力します。
+- 詳細表示を行いたい場合は --verbose を指定してください。  
+処理中の標準出力を画面およびログに出力します。
   ```bash
-  ./prepare_jbrowse.sh --verbose GCF_000840245.1 GCF_000819615.1 GCF_000861465.1
+  ./prepare_jbrowse.sh --verbose GCA_000012525.1 GCA_000005845.2 GCA_000006745.1
   ```
 
 - （参考）本手順では、ソースコードが配置されているディレクトリ（Git clone 先）と、JBrowse プロジェクトを作成するディレクトリは別の場所になります。  
@@ -174,9 +174,9 @@ A. スクリプトによる自動実行の場合（通常はこちら）
               │   └ error.log
               └ prepare_jbrowse/
                   ├ summary.log
-                  ├ GCF_000840245.1.log
-                  ├ GCF_000819615.1.log
-                  └ GCF_000861465.1.log
+                  ├ GCA_000005845.2.log
+                  ├ GCA_000006745.1.log
+                  └ GCA_000012525.1.log
       ```
 
     - **JBrowse プロジェクト側（$HOME/jbrowse/jbrowse2）**  
@@ -185,19 +185,19 @@ A. スクリプトによる自動実行の場合（通常はこちら）
       ```text
       $HOME/jbrowse/jbrowse2/
       ├ assemblies/
-      │   ├ GCF_000819615.1_ViralProj14015_genomic.fna
-      │   ├ GCF_000819615.1_ViralProj14015_genomic.fna.fai
-      │   ├ GCF_000840245.1_ViralProj14204_genomic.fna
-      │   ├ GCF_000840245.1_ViralProj14204_genomic.fna.fai
-      │   ├ GCF_000861465.1_ViralProj15349_genomic.fna
-      │   └ GCF_000861465.1_ViralProj15349_genomic.fna.fai
+      │   ├ GCA_000005845.2_ASM584v2_genomic.fna
+      │   ├ GCA_000005845.2_ASM584v2_genomic.fna.fai
+      │   ├ GCA_000006745.1_ASM674v1_genomic.fna
+      │   ├ GCA_000006745.1_ASM674v1_genomic.fna.fai
+      │   ├ GCA_000012525.1_ASM1252v1_genomic.fna
+      │   └ GCA_000012525.1_ASM1252v1_genomic.fna.fai
       ├ tracks/
-      │   ├ GCF_000819615.1_output.bw
-      │   ├ GCF_000819615.1_output.gff
-      │   ├ GCF_000840245.1_output.bw
-      │   ├ GCF_000840245.1_output.gff
-      │   ├ GCF_000861465.1_output.bw
-      │   └ GCF_000861465.1_output.gff
+      │   ├ GCA_000005845.2_output.bw
+      │   ├ GCA_000005845.2_output.gff
+      │   ├ GCA_000006745.1_output.bw
+      │   ├ GCA_000006745.1_output.gff
+      │   ├ GCA_000012525.1_output.bw
+      │   └ GCA_000012525.1_output.gff
       └ config.json
       ```
   </details>
