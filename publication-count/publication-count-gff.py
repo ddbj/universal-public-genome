@@ -133,18 +133,55 @@ def process_gbff_and_output_gff(config, logger, sparql_template, accession):
     output_gff_file = f"{accession}_output.gff"
 
     with zipfile.ZipFile(dataset_file, "r") as zf:
-        with zf.open(gbff_file) as gbff_raw, open(f"{working_dir}/{output_gff_file}", "w") as gff_pubchem:
-            gbff_text = TextIOWrapper(gbff_raw, encoding="utf-8")
+
+        # Count total lines
+        with zf.open(gbff_file) as f:
+            total_lines = sum(1 for _ in TextIOWrapper(f, encoding="utf-8"))
+
+        # Count total records
+        with zf.open(gbff_file) as f:
+            gbff_text = TextIOWrapper(f, encoding="utf-8")
+            total_records = sum(1 for _ in SeqIO.parse(gbff_text, "genbank"))
+
+        # Real processing with three-level progress display
+        with zf.open(gbff_file) as gbff_raw, \
+             zf.open(gbff_file) as gbff_raw_lines, \
+             open(f"{working_dir}/{output_gff_file}", "w") as gff_pubchem:
+
+            gbff_text = TextIOWrapper(gbff_raw, encoding="utf-8")        # For SeqIO
+            gbff_lines = TextIOWrapper(gbff_raw_lines, encoding="utf-8") # For line count
 
             gff_pubchem.write("##gff-version 3\n")
 
-            for i, record in enumerate(SeqIO.parse(gbff_text, "genbank"), start=1):
-                print(f"\rProcessing record #{i}" + " " * 30, flush=True)
+            current_line = 0
+            current_record = 0
+
+            for record in SeqIO.parse(gbff_text, "genbank"):
+                current_record += 1
+
+                # Count lines until end of this record ("//")
+                for line in gbff_lines:
+                    current_line += 1
+                    if line.startswith("//"):
+                        break
+
+                feature_count = len(record.features)
+
+                # PRINT: Line / Record / Feature (three-level progress display)
+                def print_progress(feature_index, feature_total):
+                    print(
+                        f"\r"
+                        f"[Line {current_line:7d} / {total_lines:7d}] "
+                        f"[Record {current_record:4d} / {total_records:4d}] "
+                        f"[Feature {feature_index:6d} / {feature_total:6d}]  "
+                        f"{record.id}",
+                        end="",
+                        flush=True
+                    )
 
                 cds_counter = 0
-
                 for j, feature in enumerate(record.features, start=1):
-                    print(f"\r  → feature {j}/{len(record.features)}", end="", flush=True)
+                    print_progress(j, feature_count)
 
                     if feature.type == "source":
                         start = int(feature.location.start) + 1
@@ -183,7 +220,7 @@ def process_gbff_and_output_gff(config, logger, sparql_template, accession):
                     cds_line = [record.id, "Reference", "Gene", start, end, score, strand, ".", attributes]
                     gff_pubchem.write("\t".join(map(str, cds_line)) + "\n")
 
-                print()
+                print()  # line break after each record
 
     print(f"\nGFF file output is complete. Path: {os.path.join(working_dir, output_gff_file)}")
 
